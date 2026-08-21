@@ -2,39 +2,31 @@
 <!-- ==========================================================================
      LOGIN SCREEN
      ==========================================================================
-     Maps to Login.html in the Apps Script build. This is the entry point:
-     doGet(e) with no valid session routes here first.
+     doGet(e) with no ?page= (or page=login) routes here. Entry point.
 
-     Flow: EnrolmentNo + DOB -> Server.loginStudent() -> on success, route to
-     Application step 1 (no application yet) or Status.html (one exists) —
-     see applicationEntryUrl() in script.js.
+     Flow: EnrolmentNo + DOB -> loginStudent() -> on success, route to
+     Application step 1 (no application yet) or Status (one exists) —
+     see applicationEntryUrl() in JavaScript.html.
      ========================================================================== -->
 <html lang="en">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GGSIPU Hostel Portal — Login</title>
-  <link rel="stylesheet" href="css/stylesheet.css">
+  <?!= include('Stylesheet') ?>
   <style>
     /* ---- page-specific: login ---- */
     .login-shell { display: flex; justify-content: center; padding-top: var(--space-6); }
     .login-panel { width: 100%; max-width: 480px; }
     .login-panel__title { font-size: var(--text-2xl); margin-top: var(--space-2); }
     .login-panel__subtitle { color: var(--text-muted); margin-top: 4px; margin-bottom: var(--space-2); }
-    .demo-box {
-      border: 1px solid var(--border);
-      background: var(--surface-muted);
-      border-radius: var(--radius);
-      padding: var(--space-3) var(--space-4);
-      font-size: var(--text-xs);
-      color: var(--text-body);
-    }
-    .demo-box b { color: var(--text); }
-    .demo-box code { background: #fff; border: 1px solid var(--border); padding: 1px 4px; border-radius: 2px; }
     .help-line { text-align: center; font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-5); }
   </style>
 </head>
 <body>
+  <script>const BASE_URL = '<?= baseUrl ?>';</script>
+
   <div class="page">
     <header class="site-header" id="site-header"></header>
 
@@ -72,13 +64,6 @@
                 Log In
               </button>
             </form>
-
-            <div class="demo-box">
-              <b>Mockup preview only</b> — try any of these seeded records:<br>
-              <code>05114802722</code> / <code>2004-03-15</code> &middot;
-              <code>04714802722</code> / <code>2004-07-22</code> &middot;
-              <code>09714802722</code> / <code>2003-11-05</code>
-            </div>
           </div>
 
           <p class="help-line">Trouble logging in? Contact the Hostel Office with your enrolment number.</p>
@@ -89,10 +74,9 @@
     <footer class="site-footer" id="site-footer"></footer>
   </div>
 
-  <script src="js/mock-data.js"></script>
-  <script src="js/script.js"></script>
+  <?!= include('JavaScript') ?>
   <script>
-    /* ---- page glue: wires the form to Server.loginStudent() ---- */
+    /* ---- page glue: wires the form to loginStudent() ---- */
     renderSiteHeader(document.getElementById('site-header'));
     renderSiteFooter(document.getElementById('site-footer'));
 
@@ -127,21 +111,24 @@
       submitBtn.disabled = true;
       submitBtn.textContent = 'Checking…';
 
-      Server.loginStudent(enrolmentNo, dob,
-        (result) => {
-          setSession(result.student);
-          window.location.href = applicationEntryUrl(result.student.EnrolmentNo);
-        },
-        (err) => {
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (!result.success) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Log In';
+            showAlert(alertRoot, { title: 'We couldn’t log you in', message: result.error, tone: 'danger' });
+            return;
+          }
+          setSession({ ...result.student, hasExistingApplication: result.hasExistingApplication, applicationId: result.applicationId });
+          window.top.location.href = applicationEntryUrl(getSession());
+        })
+        .withFailureHandler((error) => {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Log In';
-          showAlert(alertRoot, {
-            title: 'We couldn’t log you in',
-            message: err.message,
-            tone: 'danger'
-          });
-        }
-      );
+          showAlert(alertRoot, { title: 'Something went wrong', message: 'Please try again in a moment.', tone: 'danger' });
+          console.error(error);
+        })
+        .loginStudent(enrolmentNo, dob);
     });
   </script>
 </body>

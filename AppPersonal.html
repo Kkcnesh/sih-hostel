@@ -2,20 +2,23 @@
 <!-- ==========================================================================
      APPLICATION — STEP 1: PERSONAL & ACADEMIC DETAILS
      ==========================================================================
-     First of six application step pages (see APPLICATION_STEPS in script.js
-     for the full list). Fields are based on the GGSIPU Hostel Application
-     Form (Annexure-I). Answers are written to the shared "draft" object
-     (see saveDraftFields() in script.js) and only turn into a real
+     First of six application step pages (see APPLICATION_STEPS in
+     JavaScript.html for the full list). Fields are based on the GGSIPU
+     Hostel Application Form (Annexure-I). Answers are written to the
+     shared "draft" object (saveDraftFields()) and only turn into a real
      Applications row when step 6 (Review & Submit) succeeds.
      ========================================================================== -->
 <html lang="en">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GGSIPU Hostel Portal — Application: Personal Details</title>
-  <link rel="stylesheet" href="css/stylesheet.css">
+  <?!= include('Stylesheet') ?>
 </head>
 <body>
+  <script>const BASE_URL = '<?= baseUrl ?>';</script>
+
   <div class="page">
     <header class="site-header" id="site-header"></header>
 
@@ -108,13 +111,12 @@
     <footer class="site-footer" id="site-footer"></footer>
   </div>
 
-  <script src="js/mock-data.js"></script>
-  <script src="js/script.js"></script>
+  <?!= include('JavaScript') ?>
   <script>
     const student = requireSession();
     if (student) {
-      if (getApplicationRecord(student.EnrolmentNo)) {
-        window.location.href = 'status.html';
+      if (student.hasExistingApplication) {
+        window.top.location.href = pageUrl('status');
       }
 
       renderSiteHeader(document.getElementById('site-header'), { activeNav: 'apply' });
@@ -199,7 +201,7 @@
         extraCurricular: document.getElementById('extraCurricular').value
       });
 
-      window.location.href = 'application-2-family.html';
+      window.top.location.href = pageUrl('family');
     });
   </script>
 </body>

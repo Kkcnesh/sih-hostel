@@ -2,27 +2,30 @@
 <!-- ==========================================================================
      STATUS TRACKER
      ==========================================================================
-     Maps to Status.html in the Apps Script build. Requires a session — routes
-     here for a logged-in student who already has an Applications row.
+     Requires a session — for a logged-in student who already has an
+     Applications row (student.hasExistingApplication).
 
-     Status flow (see Server.getApplicationStatus in script.js):
-       submitted -> verification -> allotted | waitlisted
-     The last transition (verification -> allotted/waitlisted) is written by
-     the allocation engine this project doesn't build yet — see the TODO
-     near applyDemoOverride() below for how this page previews that state
-     in the meantime.
+     getApplicationStatus() (Code.gs) returns two separate columns —
+     VerificationStatus ("Pending" | "Verified", set by the not-yet-built
+     admin dashboard) and AllotmentStatus ("Not Processed" | "Allotted" |
+     "Waitlisted", set by the not-yet-built allocation engine). This page
+     derives its 3-stage corridor display from both — see
+     deriveCorridorStatus() below.
      ========================================================================== -->
 <html lang="en">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GGSIPU Hostel Portal — Status</title>
-  <link rel="stylesheet" href="css/stylesheet.css">
+  <?!= include('Stylesheet') ?>
   <style>
     .corridor-status-line { text-align: center; font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-4); }
   </style>
 </head>
 <body>
+  <script>const BASE_URL = '<?= baseUrl ?>';</script>
+
   <div class="page">
     <header class="site-header" id="site-header"></header>
 
@@ -38,8 +41,7 @@
     <footer class="site-footer" id="site-footer"></footer>
   </div>
 
-  <script src="js/mock-data.js"></script>
-  <script src="js/script.js"></script>
+  <?!= include('JavaScript') ?>
   <script>
     /* ==========================================================================
        PAGE GLUE — Status tracker
@@ -51,10 +53,19 @@
       renderSiteHeader(document.getElementById('site-header'), { activeNav: 'status' });
       renderSiteFooter(document.getElementById('site-footer'));
 
-      Server.getApplicationStatus(student.EnrolmentNo,
-        (result) => renderStatus(result.application),
-        () => renderEmptyState()
-      );
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (!result.success) {
+            renderEmptyState();
+            return;
+          }
+          renderStatus(result.application);
+        })
+        .withFailureHandler((error) => {
+          renderEmptyState();
+          console.error(error);
+        })
+        .getApplicationStatus(student.EnrolmentNo);
     }
 
     function renderEmptyState() {
@@ -63,56 +74,39 @@
           <div class="empty-state__icon">${icon('doc')}</div>
           <h2 style="font-size: var(--text-lg);">No application yet</h2>
           <p class="text-muted" style="margin-top: 4px;">You haven't submitted a hostel application. Fill it in to get a reference number and start tracking.</p>
-          <a href="application-1-personal.html" class="btn btn--primary" style="margin-top: var(--space-4);">Start application</a>
+          <a href="${pageUrl('personal')}" class="btn btn--primary" style="margin-top: var(--space-4);">Start application</a>
         </div>
       `;
     }
 
-    /*
-     * TODO(backend): the allocation engine (not built in this pass) is what
-     * actually moves a record from "verification" to "allotted"/"waitlisted"
-     * and fills in hostelName/roomNo/roommate or waitlistPosition. Until it
-     * exists, this page lets a real submitted record be previewed at any
-     * later stage via a ?demo= query param, e.g. status.html?demo=allotted.
-     * DELETE applyDemoOverride() and the query-param read below once
-     * getApplicationStatus() returns these fields for real.
-     */
-    function applyDemoOverride(record) {
-      const demo = new URLSearchParams(window.location.search).get('demo');
-      if (!['verification', 'allotted', 'waitlisted'].includes(demo)) return record;
-
-      const preview = { ...record, status: demo };
-      if (demo === 'allotted') {
-        preview.hostelName = `${record.hostel === 'Girls' ? 'Girls' : 'Boys'} Hostel — Block ${record.hostel === 'Girls' ? 'A' : 'B'}`;
-        preview.roomNo = 'B-214';
-        preview.roommate = record.roommateEnrolment ? 'Matched with your requested roommate' : 'Not yet assigned';
-      }
-      if (demo === 'waitlisted') {
-        preview.waitlistPosition = 7;
-      }
-      return preview;
+    /** VerificationStatus + AllotmentStatus (two sheet columns) -> the corridor's single stage key. */
+    function deriveCorridorStatus(app) {
+      if (app.allotmentStatus === 'Allotted') return 'allotted';
+      if (app.allotmentStatus === 'Waitlisted') return 'waitlisted';
+      if (app.verificationStatus === 'Pending') return 'submitted';
+      return 'verification';
     }
 
-    function renderStatus(rawRecord) {
-      const record = applyDemoOverride(rawRecord);
+    function renderStatus(app) {
+      const statusKey = deriveCorridorStatus(app);
 
       const stageLine = {
         submitted: 'Your application has been received and is queued for verification.',
         verification: 'The Hostel Office is verifying your documents. This usually takes a few working days.',
         allotted: 'A room has been allotted — details below.',
         waitlisted: 'All seats matching your preference are full for now — you are on the waitlist.'
-      }[record.status];
+      }[statusKey];
 
       statusRoot.innerHTML = `
         <section class="panel">
           <div class="summary-grid">
             <div>
               <p class="summary-grid__label">Reference No.</p>
-              <p class="summary-grid__value">${record.referenceNo}</p>
+              <p class="summary-grid__value">${app.applicationId}</p>
             </div>
             <div>
               <p class="summary-grid__label">Submitted On</p>
-              <p class="summary-grid__value">${formatDateDisplay(record.submittedDate)}</p>
+              <p class="summary-grid__value">${formatDateDisplay(app.submittedDate)}</p>
             </div>
           </div>
         </section>
@@ -130,9 +124,9 @@
         <div id="result-slot"></div>
       `;
 
-      renderCorridor(document.getElementById('corridor'), record.status);
-      renderDocChecklist(record.documents || {});
-      renderResultCard(record);
+      renderCorridor(document.getElementById('corridor'), statusKey);
+      renderDocChecklist(app.documents || {});
+      renderResultCard(app, statusKey);
     }
 
     function renderDocChecklist(documents) {
@@ -152,35 +146,35 @@
       }).join('');
     }
 
-    function renderResultCard(record) {
+    function renderResultCard(app, statusKey) {
       const slot = document.getElementById('result-slot');
 
-      if (record.status === 'allotted') {
+      if (statusKey === 'allotted') {
         slot.innerHTML = `
           <section class="panel result-card result-card--allotted">
             <h2 class="panel__title" style="font-size: var(--text-base);">You're allotted a room</h2>
             <div class="result-card__grid">
               <div>
                 <p class="result-card__stat-label">Hostel</p>
-                <p class="result-card__stat-value">${record.hostelName}</p>
+                <p class="result-card__stat-value">${app.hostel} Hostel</p>
               </div>
               <div>
                 <p class="result-card__stat-label">Room No.</p>
-                <p class="result-card__stat-value">${record.roomNo}</p>
+                <p class="result-card__stat-value">${app.allottedRoomNo}</p>
               </div>
               <div style="grid-column: 1 / -1;">
                 <p class="result-card__stat-label">Roommate</p>
-                <p class="result-card__stat-value">${record.roommate}</p>
+                <p class="result-card__stat-value">${app.allottedRoommateEnrolmentNo || 'Not yet assigned'}</p>
               </div>
             </div>
           </section>
         `;
-      } else if (record.status === 'waitlisted') {
+      } else if (statusKey === 'waitlisted') {
         slot.innerHTML = `
           <section class="panel result-card result-card--waitlisted">
             <h2 class="panel__title" style="font-size: var(--text-base);">You're on the waitlist</h2>
-            ${record.waitlistPosition
-              ? `<div><p class="result-card__stat-label">Waitlist Position</p><p class="result-card__stat-value">#${record.waitlistPosition}</p></div>`
+            ${app.waitlistPosition
+              ? `<div><p class="result-card__stat-label">Waitlist Position</p><p class="result-card__stat-value">#${app.waitlistPosition}</p></div>`
               : `<p class="text-muted">Your position will appear here once seats are finalised.</p>`}
           </section>
         `;

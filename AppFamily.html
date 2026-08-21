@@ -4,12 +4,15 @@
      ========================================================================== -->
 <html lang="en">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GGSIPU Hostel Portal — Application: Family &amp; Contact</title>
-  <link rel="stylesheet" href="css/stylesheet.css">
+  <?!= include('Stylesheet') ?>
 </head>
 <body>
+  <script>const BASE_URL = '<?= baseUrl ?>';</script>
+
   <div class="page">
     <header class="site-header" id="site-header"></header>
 
@@ -94,6 +97,15 @@
             <p class="field__error"></p>
           </div>
 
+          <div class="field-row">
+            <div class="field" id="field-emergencyTel">
+              <label class="field__label" for="emergencyTel">Emergency Contact Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+              <input class="field__control" type="tel" id="emergencyTel">
+              <p class="field__error"></p>
+            </div>
+            <div></div>
+          </div>
+
           <div class="btn-row">
             <button type="button" class="btn btn--secondary" id="back-btn">Back</button>
             <button type="submit" class="btn btn--primary" id="next-btn">Next: Local Guardian Details</button>
@@ -105,13 +117,12 @@
     <footer class="site-footer" id="site-footer"></footer>
   </div>
 
-  <script src="js/mock-data.js"></script>
-  <script src="js/script.js"></script>
+  <?!= include('JavaScript') ?>
   <script>
     const student = requireSession();
     let draft;
     if (student) {
-      if (getApplicationRecord(student.EnrolmentNo)) window.location.href = 'status.html';
+      if (student.hasExistingApplication) window.top.location.href = pageUrl('status');
       draft = requireDraft();
     }
 
@@ -131,6 +142,7 @@
       document.getElementById('studentMobile').value = draft.studentMobile ?? '';
       document.getElementById('studentEmail').value = draft.studentEmail ?? '';
       document.getElementById('emergencyAddress').value = draft.emergencyAddress ?? '';
+      document.getElementById('emergencyTel').value = draft.emergencyTel ?? '';
     }
 
     const REQUIRED_FIELDS = [
@@ -141,7 +153,8 @@
       { id: 'resEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
       { id: 'studentMobile', validator: isValidMobile, invalidMsg: 'Enter a valid 10-digit mobile number.' },
       { id: 'studentEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
-      { id: 'emergencyAddress' }
+      { id: 'emergencyAddress' },
+      { id: 'emergencyTel' }
     ];
 
     function validateTextField(cfg) {
@@ -175,13 +188,14 @@
         },
         studentMobile: document.getElementById('studentMobile').value,
         studentEmail: document.getElementById('studentEmail').value,
-        emergencyAddress: document.getElementById('emergencyAddress').value
+        emergencyAddress: document.getElementById('emergencyAddress').value,
+        emergencyTel: document.getElementById('emergencyTel').value
       };
     }
 
     document.getElementById('back-btn').addEventListener('click', () => {
       saveDraftFields(currentFields());
-      window.location.href = 'application-1-personal.html';
+      window.top.location.href = pageUrl('personal');
     });
 
     document.getElementById('step-form').addEventListener('submit', (e) => {
@@ -197,7 +211,7 @@
         return;
       }
       saveDraftFields(currentFields());
-      window.location.href = 'application-3-guardian.html';
+      window.top.location.href = pageUrl('guardian');
     });
   </script>
 </body>

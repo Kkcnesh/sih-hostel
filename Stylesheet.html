@@ -1,15 +1,10 @@
+<style>
 /* ==========================================================================
    GGSIPU HOSTEL PORTAL — SHARED STYLESHEET
    ==========================================================================
-   In the Apps Script build this whole file gets wrapped as Stylesheet.html:
-
-     <style>
-       ... (contents of this file) ...
-     </style>
-
-   and pulled into every page via  <?!= include('Stylesheet') ?>  inside
-   a <head> tag. Keep everything here shared/global — page-specific rules
-   should live in a small <style> block at the top of that page instead.
+   Pulled into every page's <head> via  <?!= include('Stylesheet') ?>  .
+   Keep everything here shared/global — page-specific rules belong in a
+   small <style> block at the top of that page instead.
 
    VISUAL DIRECTION: this intentionally matches the look of the university's
    own site (ipu.ac.in school pages) — navy header/footer, gold crest, bold
@@ -620,3 +615,4 @@ a:focus-visible, button:focus-visible, .btn:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+</style>

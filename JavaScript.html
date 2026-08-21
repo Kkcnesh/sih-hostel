@@ -1,126 +1,63 @@
+<script>
 /* ==========================================================================
    GGSIPU HOSTEL PORTAL — SHARED CLIENT LOGIC
    ==========================================================================
-   In the Apps Script build, this file becomes JavaScript.html and is
-   pulled into every page via  <?!= include('JavaScript') ?>  just before
-   the closing </body> tag.
+   Pulled into every page via  <?!= include('JavaScript') ?>  just before
+   the closing body tag. Every page also defines a global BASE_URL constant
+   (const BASE_URL = '<?= baseUrl ?>';, in its own small inline script) just
+   before that include — pageUrl() below depends on it.
 
    TABLE OF CONTENTS
    -----------------
-   1.  Server stand-ins        (mirrors Code.gs — this is the porting map)
+   1.  Navigation + server-call helpers (pageUrl, runServer)
    2.  Session helpers         (who's logged in, right now)
    3.  Site header / footer renderer (shared chrome on every page)
    4.  Application draft store (in-progress wizard answers, steps 1–6)
-   5.  Application record store (the final submitted "Applications" row)
-   6.  Validation helpers
-   7.  Formatting helpers
-   8.  Toast / inline alerts
-   9.  Document uploader component
-   10. Step wizard nav renderer
-   11. Corridor status tracker renderer
-   12. Small icon set (inline SVG, no external assets)
+   5.  Validation helpers
+   6.  Formatting helpers
+   7.  Toast / inline alerts
+   8.  Document uploader component (real Drive uploads via uploadDocument)
+   9.  Step wizard nav renderer
+   10. Corridor status tracker renderer
+   11. Small icon set (inline SVG, no external assets)
    ========================================================================== */
 
 
 /* ==========================================================================
-   1. SERVER STAND-INS
-   ==========================================================================
-   Everything in the `Server` object below is a MOCKUP replacement for
-   google.script.run. Each method has the exact same name as the Code.gs
-   function it will call in the real build, and the exact same
-   (args..., onSuccess, onFailure) shape as:
-
-     google.script.run
-       .withSuccessHandler(onSuccess)
-       .withFailureHandler(onFailure)
-       .functionName(args...)
-
-   so porting a page is a find-and-replace of `Server.functionName(` with
-   the google.script.run chain above — no other page logic should need
-   to change.
-
-   TODO(backend): implement the real Code.gs versions:
-     - loginStudent(enrolmentNo, dob)
-         Look up EnrolmentNo + DOB in the "Eligibility" sheet.
-         Return { success, student } or { success:false, message }.
-     - submitApplication(applicationData)
-         Append a row to the "Applications" sheet (one row per student).
-         This is the row the future allocation engine will read from —
-         keep column order stable once real users depend on it.
-         Return { success, referenceNo }.
-     - uploadDocument(fileMeta)
-         DriveApp.createFile(...) into a per-student folder, store the
-         resulting file URL back onto the student's Applications row.
-         Return { success, fileUrl }.
-     - getApplicationStatus(enrolmentNo)
-         Read the student's row from "Applications" (+ "Allotments" sheet
-         once the allocation engine exists) and return current status.
+   1. NAVIGATION + SERVER-CALL HELPERS
    ========================================================================== */
-const Server = {
 
-  loginStudent(enrolmentNo, dob, onSuccess, onFailure) {
-    mockLatency(() => {
-      const match = MOCK_ELIGIBILITY.find(
-        (row) => row.EnrolmentNo === enrolmentNo.trim() && row.DOB === dob
-      );
-      if (!match) {
-        onFailure({
-          success: false,
-          message: 'We couldn’t find a match for that enrolment number and date of birth. Double-check both and try again.'
-        });
-        return;
-      }
-      onSuccess({ success: true, student: match });
-    });
-  },
+/** Every internal link is `${BASE_URL}?page=<key>` — see PAGE_TEMPLATES in Code.gs for the key list. */
+function pageUrl(key) {
+  return `${BASE_URL}?page=${key}`;
+}
 
-  submitApplication(applicationData, onSuccess, onFailure) {
-    mockLatency(() => {
-      const referenceNo = generateReferenceNumber();
-      const record = {
-        ...applicationData,
-        referenceNo,
-        submittedDate: new Date().toISOString(),
-        status: 'submitted' // submitted -> verification -> allotted | waitlisted
-      };
-      saveApplicationRecord(record);
-      onSuccess({ success: true, referenceNo });
-    }, 900);
-  },
-
-  uploadDocument(fileMeta, onSuccess, onFailure) {
-    // In the real build this receives a base64 blob and calls
-    // DriveApp.createFile() into a student-specific folder, then returns
-    // the resulting file's URL/ID to store on the Applications row.
-    mockLatency(() => {
-      onSuccess({ success: true, fileName: fileMeta.name });
-    }, 700 + Math.random() * 600);
-  },
-
-  getApplicationStatus(enrolmentNo, onSuccess, onFailure) {
-    mockLatency(() => {
-      const record = getApplicationRecord(enrolmentNo);
-      if (!record) {
-        onFailure({ success: false, message: 'No application found for this student yet.' });
-        return;
-      }
-      onSuccess({ success: true, application: record });
-    });
-  }
-};
-
-function mockLatency(fn, delay) {
-  setTimeout(fn, delay ?? 500 + Math.random() * 400);
+/**
+ * Promise wrapper around google.script.run, used where a page needs to
+ * `await` a server call (the uploader loops multiple files sequentially).
+ * Resolves with whatever the server function returned — including a
+ * {success:false, ...} result — and only rejects on a genuinely unexpected
+ * server exception. Callers must still check `.success` themselves.
+ */
+function runServer(fnName, args) {
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(reject)
+      [fnName](...args);
+  });
 }
 
 
 /* ==========================================================================
    2. SESSION HELPERS
    ==========================================================================
-   Stands in for however the real Apps Script webapp tracks "who is
-   currently looking at this page" (e.g. a short-lived token in the URL,
-   or Session.getActiveUser() if Google login is ever layered on top).
-   Kept in sessionStorage so it clears when the browser tab closes.
+   The session object is whatever loginStudent() returned as `student`,
+   plus `hasExistingApplication` / `applicationId` merged in at login time
+   (and updated again right after a successful submitApplication() call —
+   see AppReview.html). Kept in sessionStorage so it clears when the tab
+   closes; there's no server-side session, since login here is an
+   enrolment+DOB check, not real Google account auth.
    ========================================================================== */
 const SESSION_KEY = 'hostelSession';
 
@@ -137,19 +74,19 @@ function clearSession() {
   sessionStorage.removeItem(SESSION_KEY);
 }
 
-/** Call at the top of application.html / status.html. Bounces to login if no session. */
+/** Call at the top of every Application/Status page. Bounces to login if there's no session. */
 function requireSession() {
   const student = getSession();
   if (!student) {
-    window.location.href = 'index.html';
+    window.top.location.href = pageUrl('login');
     return null;
   }
   return student;
 }
 
-/** Where "Apply for Hostel" / a fresh login should land: resume status if a record already exists. */
-function applicationEntryUrl(enrolmentNo) {
-  return getApplicationRecord(enrolmentNo) ? 'status.html' : 'application-1-personal.html';
+/** Where "Apply for Hostel" / a fresh login should land. */
+function applicationEntryUrl(student) {
+  return student.hasExistingApplication ? pageUrl('status') : pageUrl('personal');
 }
 
 
@@ -158,12 +95,10 @@ function applicationEntryUrl(enrolmentNo) {
    ==========================================================================
    Shared chrome for every page — matches the university's own subsite
    header structure (slim navy utility row, bolder row with the crest and
-   bold orange section links) so the portal reads as part of the same site.
-
-   In the Apps Script build this becomes Header.html / Footer.html partials
-   pulled in via <?!= include('Header') ?> — it's kept as JS here instead of
-   duplicated per-file so the whole site's chrome updates from one place
-   while this is still a static mockup.
+   bold orange section links). Rendered from JS rather than split into
+   Header.html/Footer.html partials because the "logged in" parts (name,
+   Log Out, which nav items apply) depend on sessionStorage, which server
+   templates can't see at render time — there's no server-side session here.
    ========================================================================== */
 function renderSiteHeader(rootEl, { activeNav = null } = {}) {
   const student = getSession();
@@ -173,14 +108,14 @@ function renderSiteHeader(rootEl, { activeNav = null } = {}) {
       <span class="site-header__student"><b>${student.Name}</b> &nbsp;${student.EnrolmentNo}</span>
       <button type="button" data-role="logout">Log Out</button>
     `
-    : `<a href="index.html">Home</a><a href="index.html">Contact Hostel Office</a>`;
+    : `<a href="${pageUrl('login')}">Home</a><a href="${pageUrl('login')}">Contact Hostel Office</a>`;
 
   const navLinks = student
     ? `
-      <a href="${applicationEntryUrl(student.EnrolmentNo)}" ${activeNav === 'apply' ? 'aria-current="page"' : ''}>Apply for Hostel</a>
-      <a href="status.html" ${activeNav === 'status' ? 'aria-current="page"' : ''}>Track Status</a>
+      <a href="${applicationEntryUrl(student)}" ${activeNav === 'apply' ? 'aria-current="page"' : ''}>Apply for Hostel</a>
+      <a href="${pageUrl('status')}" ${activeNav === 'status' ? 'aria-current="page"' : ''}>Track Status</a>
     `
-    : `<a href="index.html" aria-current="page">Student Login</a>`;
+    : `<a href="${pageUrl('login')}" aria-current="page">Student Login</a>`;
 
   rootEl.innerHTML = `
     <div class="site-header__utility">
@@ -198,7 +133,7 @@ function renderSiteHeader(rootEl, { activeNav = null } = {}) {
 
   rootEl.querySelector('[data-role="logout"]')?.addEventListener('click', () => {
     clearSession();
-    window.location.href = 'index.html';
+    window.top.location.href = pageUrl('login');
   });
 }
 
@@ -215,12 +150,13 @@ function renderSiteFooter(rootEl) {
    Holds in-progress answers as a student moves through the 6 application
    steps, before final submission. Each step page reads its own fields out
    of this on load (so Back/Next never loses work) and writes into it via
-   saveDraftFields() before navigating on.
+   saveDraftFields() before navigating on. Only turns into a real
+   Applications row when step 6 (Review & Submit) calls submitApplication().
 
    TODO(backend): a production version should persist this server-side too
-   (e.g. a PropertiesService-backed draft, or an "in progress" sheet row) so
-   a student who closes the tab mid-application doesn't lose their answers —
-   sessionStorage alone only survives within one browser tab session.
+   (e.g. a PropertiesService-backed draft) so a student who closes the tab
+   mid-application doesn't lose their answers — sessionStorage alone only
+   survives within one browser tab session.
    ========================================================================== */
 const DRAFT_KEY = 'hostelApplicationDraft';
 
@@ -243,7 +179,7 @@ function clearDraft() {
 function requireDraft() {
   const draft = getDraft();
   if (!draft) {
-    window.location.href = 'application-1-personal.html';
+    window.top.location.href = pageUrl('personal');
     return null;
   }
   return draft;
@@ -251,31 +187,7 @@ function requireDraft() {
 
 
 /* ==========================================================================
-   5. APPLICATION RECORD STORE
-   ==========================================================================
-   Stands in for the "Applications" Sheet — one record per EnrolmentNo.
-   Real version: a row in a Sheet, read/written via SpreadsheetApp.
-   ========================================================================== */
-const APPLICATIONS_KEY = 'hostelApplications';
-
-function getAllApplications() {
-  const raw = localStorage.getItem(APPLICATIONS_KEY);
-  return raw ? JSON.parse(raw) : {};
-}
-
-function getApplicationRecord(enrolmentNo) {
-  return getAllApplications()[enrolmentNo] || null;
-}
-
-function saveApplicationRecord(record) {
-  const all = getAllApplications();
-  all[record.enrolmentNo] = record;
-  localStorage.setItem(APPLICATIONS_KEY, JSON.stringify(all));
-}
-
-
-/* ==========================================================================
-   6. VALIDATION HELPERS
+   5. VALIDATION HELPERS
    ========================================================================== */
 function isFilled(value) {
   return typeof value === 'string' ? value.trim().length > 0 : !!value;
@@ -309,14 +221,8 @@ function setFieldError(fieldEl, message) {
 
 
 /* ==========================================================================
-   7. FORMATTING HELPERS
+   6. FORMATTING HELPERS
    ========================================================================== */
-function generateReferenceNumber() {
-  const year = new Date().getFullYear();
-  const random = Math.floor(10000 + Math.random() * 90000);
-  return `GGSIPU-HST-${year}-${random}`;
-}
-
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -332,7 +238,7 @@ function formatDateDisplay(isoOrDate) {
 
 
 /* ==========================================================================
-   8. TOAST / INLINE ALERTS
+   7. TOAST / INLINE ALERTS
    ========================================================================== */
 function showAlert(rootEl, { title, message, tone = 'danger' }) {
   rootEl.innerHTML = '';
@@ -349,50 +255,58 @@ function clearAlert(rootEl) {
 
 
 /* ==========================================================================
-   9. DOCUMENT UPLOADER COMPONENT
+   8. DOCUMENT UPLOADER COMPONENT
    ==========================================================================
    Builds all six document uploaders from DOCUMENT_CONFIG and wires up a
-   fake-but-realistic upload flow: pick file -> validate type/size ->
-   progress -> green check. Replacing a file re-runs the same flow.
-
-   DriveApp NOTE: the actual file bytes never leave the browser in this
-   mockup. In the real build, onFileSelected() below is where you'd read
-   the file as base64 and call Server.uploadDocument({name, mimeType,
-   base64Data}), whose Code.gs counterpart does:
-     DriveApp.getFolderById(STUDENT_FOLDER_ID).createFile(blob)
+   real upload: read the file as base64 in the browser, send it to
+   uploadDocument() (Code.gs), which drops it into the student's Drive
+   folder and returns the file's URL. Marksheets allows multiple files —
+   each is uploaded with its own uploadDocument() call and the returned
+   links are joined into one comma-separated string, since the Applications
+   sheet has a single MarksheetsDriveLink cell.
    ========================================================================== */
 const DOCUMENT_CONFIG = [
-  { key: 'photo', label: 'Passport-size photo', required: true, accept: 'image/*', multiple: false,
+  { key: 'photo', serverDocType: 'Photo', label: 'Passport-size photo', required: true, accept: 'image/*', multiple: false,
     help: 'Recent photo — JPG or PNG, under 5 MB' },
-  { key: 'aadhar', label: 'Aadhaar card copy', required: true, accept: 'image/*,application/pdf', multiple: false,
+  { key: 'aadhar', serverDocType: 'Aadhar', label: 'Aadhaar card copy', required: true, accept: 'image/*,application/pdf', multiple: false,
     help: 'Both sides — JPG, PNG or PDF, under 5 MB' },
-  { key: 'marksheets', label: 'Marksheets (10th, 12th & preceding semester)', required: true, accept: 'image/*,application/pdf', multiple: true,
+  { key: 'marksheets', serverDocType: 'Marksheets', label: 'Marksheets (10th, 12th & preceding semester)', required: true, accept: 'image/*,application/pdf', multiple: true,
     help: 'You can select more than one file at once' },
-  { key: 'medical', label: 'Medical certificate', required: true, accept: 'image/*,application/pdf', multiple: false,
+  { key: 'medical', serverDocType: 'MedicalCert', label: 'Medical certificate', required: true, accept: 'image/*,application/pdf', multiple: false,
     help: 'Issued by a registered medical practitioner' },
-  { key: 'guardianConsent', label: 'Local guardian consent form', required: true, accept: 'image/*,application/pdf', multiple: false,
+  { key: 'guardianConsent', serverDocType: 'GuardianConsent', label: 'Local guardian consent form', required: true, accept: 'image/*,application/pdf', multiple: false,
     help: 'Signed by your local guardian' },
-  { key: 'antiRagging', label: 'Anti-Ragging affidavit', required: true, accept: 'image/*,application/pdf', multiple: false,
+  { key: 'antiRagging', serverDocType: 'AntiRagging', label: 'Anti-Ragging affidavit', required: true, accept: 'image/*,application/pdf', multiple: false,
     help: 'Downloadable from the UGC Anti-Ragging portal' }
 ];
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB — Code.gs enforces this again server-side, don't only trust this check
+
+/** FileReader wrapped as a promise, stripped down to just the base64 payload (no "data:...;base64," prefix). */
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.readAsDataURL(file);
+  });
+}
 
 /**
  * Renders every configured uploader into containerEl and wires interaction.
- * `prefill` (optional) is a key -> {done, files} map — e.g. from a saved
- * draft — so a student returning to this step sees earlier uploads still
- * marked done instead of being asked to re-attach them.
- * Returns { getState, onChange } so the page can gate the submit button.
+ * `prefill` (optional) is a key -> {done, files, driveLink} map — e.g. from
+ * a saved draft — so a student returning to this step sees earlier uploads
+ * still marked done instead of being asked to re-attach them.
+ * Returns { getState, allRequiredDone } so the page can gate the submit button.
  */
-function renderUploaders(containerEl, onChangeCallback, prefill = {}) {
-  const state = {}; // key -> { done: bool, files: [{name, size}] }
+function renderUploaders(containerEl, onChangeCallback, prefill = {}, enrolmentNo) {
+  const state = {}; // key -> { done: bool, files: [{name, size}], driveLink: string }
 
   DOCUMENT_CONFIG.forEach((cfg) => {
     state[cfg.key] = prefill[cfg.key]?.done
-      ? { done: true, files: prefill[cfg.key].files }
-      : { done: false, files: [] };
-    containerEl.appendChild(buildUploaderNode(cfg, state, onChangeCallback));
+      ? { done: true, files: prefill[cfg.key].files, driveLink: prefill[cfg.key].driveLink }
+      : { done: false, files: [], driveLink: '' };
+    containerEl.appendChild(buildUploaderNode(cfg, state, onChangeCallback, enrolmentNo));
   });
 
   return {
@@ -401,7 +315,7 @@ function renderUploaders(containerEl, onChangeCallback, prefill = {}) {
   };
 }
 
-function buildUploaderNode(cfg, state, onChangeCallback) {
+function buildUploaderNode(cfg, state, onChangeCallback, enrolmentNo) {
   const wrap = document.createElement('div');
   wrap.className = 'uploader';
   wrap.id = `uploader-${cfg.key}`;
@@ -437,7 +351,7 @@ function buildUploaderNode(cfg, state, onChangeCallback) {
 
   trigger.addEventListener('click', () => input.click());
 
-  input.addEventListener('change', () => {
+  input.addEventListener('change', async () => {
     const files = Array.from(input.files || []);
     if (files.length === 0) return;
 
@@ -454,15 +368,24 @@ function buildUploaderNode(cfg, state, onChangeCallback) {
     statusEl.textContent = 'Uploading…';
     progressBar.style.width = '0%';
 
-    // Fake progress ramp so the state change reads as an upload, not a toggle.
+    // Perceived-progress ramp — google.script.run is one atomic round trip
+    // with no real byte-level progress events, so this just signals "still
+    // working" rather than tracking an actual percentage.
     let pct = 0;
     const ramp = setInterval(() => {
-      pct = Math.min(pct + 18 + Math.random() * 20, 92);
+      pct = Math.min(pct + 8 + Math.random() * 10, 92);
       progressBar.style.width = `${pct}%`;
-    }, 120);
+    }, 150);
 
-    // Stand-in for Server.uploadDocument(...) per-file; see file header note.
-    Server.uploadDocument({ name: files[0].name }, () => {
+    try {
+      const driveLinks = [];
+      for (const file of files) {
+        const base64 = await readFileAsBase64(file);
+        const result = await runServer('uploadDocument', [enrolmentNo, cfg.serverDocType, base64, file.name, file.type]);
+        if (!result.success) throw new Error(result.error || 'Upload failed.');
+        driveLinks.push(result.fileUrl);
+      }
+
       clearInterval(ramp);
       progressBar.style.width = '100%';
       wrap.classList.remove('uploader--uploading');
@@ -471,9 +394,18 @@ function buildUploaderNode(cfg, state, onChangeCallback) {
       statusEl.textContent = files.length > 1 ? `${files.length} files uploaded` : 'Uploaded';
       trigger.textContent = 'Replace';
 
-      state[cfg.key] = { done: true, files: files.map((f) => ({ name: f.name, size: f.size })) };
+      state[cfg.key] = {
+        done: true,
+        files: files.map((f) => ({ name: f.name, size: f.size })),
+        driveLink: driveLinks.join(', ')
+      };
       onChangeCallback?.();
-    });
+    } catch (err) {
+      clearInterval(ramp);
+      wrap.classList.remove('uploader--uploading');
+      wrap.classList.add('uploader--error');
+      statusEl.textContent = err.message || 'Upload failed — please try again.';
+    }
   });
 
   return wrap;
@@ -481,7 +413,7 @@ function buildUploaderNode(cfg, state, onChangeCallback) {
 
 
 /* ==========================================================================
-   10. STEP WIZARD NAV RENDERER
+   9. STEP WIZARD NAV RENDERER
    ==========================================================================
    The numbered progress bar shown at the top of every Application step
    page (1 Personal -> ... -> 6 Review). Purely a progress readout — the
@@ -512,11 +444,14 @@ function renderStepNav(rootEl, currentKey) {
 
 
 /* ==========================================================================
-   11. CORRIDOR STATUS TRACKER RENDERER
+   10. CORRIDOR STATUS TRACKER RENDERER
    ==========================================================================
    Signature element for Status.html: three stages rendered as numbered
    doors along a hallway. statusKey is one of:
      'submitted' | 'verification' | 'allotted' | 'waitlisted'
+   (derived server-side data -> this key by deriveCorridorStatus() in
+   Status.html, since VerificationStatus/AllotmentStatus are two separate
+   columns, not one).
    ========================================================================== */
 function renderCorridor(containerEl, statusKey) {
   const stage3Label = statusKey === 'waitlisted' ? 'Waitlisted'
@@ -552,7 +487,7 @@ function renderCorridor(containerEl, statusKey) {
 
 
 /* ==========================================================================
-   12. ICON SET  (inline SVG — no external icon library)
+   11. ICON SET  (inline SVG — no external icon library)
    ========================================================================== */
 function icon(name) {
   switch (name) {
@@ -566,3 +501,4 @@ function icon(name) {
       return '';
   }
 }
+</script>

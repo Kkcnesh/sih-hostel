@@ -4,22 +4,25 @@
      ==========================================================================
      Reads the full draft assembled across steps 1–5, shows it back for a
      final check (with an Edit link per section back to that step), and on
-     submit is the one page that actually calls Server.submitApplication().
+     submit is the one page that actually calls submitApplication().
 
      TODO(backend): once the allocation engine exists, this is the hand-off
      point — the record written here is the row it will read from.
      ========================================================================== -->
 <html lang="en">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GGSIPU Hostel Portal — Application: Review &amp; Submit</title>
-  <link rel="stylesheet" href="css/stylesheet.css">
+  <?!= include('Stylesheet') ?>
   <style>
     #confirm-view.hidden, #review-view.hidden { display: none; }
   </style>
 </head>
 <body>
+  <script>const BASE_URL = '<?= baseUrl ?>';</script>
+
   <div class="page">
     <header class="site-header" id="site-header"></header>
 
@@ -50,7 +53,7 @@
             <h1 style="font-size: var(--text-2xl);">You're on the list</h1>
             <p class="text-muted">Keep this reference number — you'll need it if you contact the Hostel Office.</p>
             <div class="confirm-panel__ref" id="confirm-ref"></div>
-            <a href="status.html" class="btn btn--primary" style="margin-top: var(--space-3);">Track your application</a>
+            <a id="confirm-status-link" href="#" class="btn btn--primary" style="margin-top: var(--space-3);">Track your application</a>
           </div>
         </div>
 
@@ -60,13 +63,12 @@
     <footer class="site-footer" id="site-footer"></footer>
   </div>
 
-  <script src="js/mock-data.js"></script>
-  <script src="js/script.js"></script>
+  <?!= include('JavaScript') ?>
   <script>
     const student = requireSession();
     let draft;
     if (student) {
-      if (getApplicationRecord(student.EnrolmentNo)) window.location.href = 'status.html';
+      if (student.hasExistingApplication) window.top.location.href = pageUrl('status');
       draft = requireDraft();
     }
 
@@ -78,12 +80,12 @@
         </div>`;
     }
 
-    function block(title, editPage, bodyHtml) {
+    function block(title, editPageKey, bodyHtml) {
       return `
         <div class="review-block">
           <div class="review-block__header">
             <span class="review-block__title">${title}</span>
-            <a href="${editPage}" class="btn btn--ghost btn--sm">Edit</a>
+            <a href="${pageUrl(editPageKey)}" class="btn btn--ghost btn--sm">Edit</a>
           </div>
           <div class="review-block__body">${bodyHtml}</div>
         </div>`;
@@ -93,7 +95,7 @@
       const d = draft;
       const container = document.getElementById('review-container');
 
-      const personal = block('Personal & Academic Details', 'application-1-personal.html', [
+      const personal = block('Personal & Academic Details', 'personal', [
         field('Full Name', d.name),
         field('Nationality', d.nationality),
         field('Date of Birth', formatDateDisplay(d.dob)),
@@ -105,7 +107,7 @@
         field('Extra-Curricular Activities', d.extraCurricular, true)
       ].join(''));
 
-      const family = block('Family & Contact Details', 'application-2-family.html', [
+      const family = block('Family & Contact Details', 'family', [
         field("Father's Name", d.fatherName),
         field("Mother's Name", d.motherName),
         field('Residence Address', d.residenceAddress?.address, true),
@@ -114,10 +116,11 @@
         field('Office Address', d.officeAddress?.address, true),
         field('Your Mobile', d.studentMobile),
         field('Your Email', d.studentEmail),
-        field('Emergency Contact Address', d.emergencyAddress, true)
+        field('Emergency Contact Address', d.emergencyAddress, true),
+        field('Emergency Contact Tel.', d.emergencyTel)
       ].join(''));
 
-      const guardian = block('Local Guardian Details', 'application-3-guardian.html', [
+      const guardian = block('Local Guardian Details', 'guardian', [
         field('Residence Address', d.localGuardian?.residence?.address, true),
         field('Residence Tel.', d.localGuardian?.residence?.tel),
         field('Residence Email', d.localGuardian?.residence?.email),
@@ -126,7 +129,7 @@
         field('Office Email', d.localGuardian?.office?.email)
       ].join(''));
 
-      const hostel = block('Hostel Preferences', 'application-4-hostel.html', [
+      const hostel = block('Hostel Preferences', 'hostel', [
         field('Hostel', d.hostel),
         field('Room Type', d.roomType),
         field('Roommate Preference', d.roommateEnrolment)
@@ -139,7 +142,7 @@
           : 'Not submitted';
         return field(cfg.label, summary);
       }).join('');
-      const documents = block('Documents', 'application-5-documents.html', docList);
+      const documents = block('Documents', 'documents', docList);
 
       container.innerHTML = personal + family + guardian + hostel + documents;
     }
@@ -149,10 +152,11 @@
       renderSiteFooter(document.getElementById('site-footer'));
       renderStepNav(document.getElementById('step-nav'), 'review');
       renderReview();
+      document.getElementById('confirm-status-link').href = pageUrl('status');
     }
 
     document.getElementById('back-btn').addEventListener('click', () => {
-      window.location.href = 'application-5-documents.html';
+      window.top.location.href = pageUrl('documents');
     });
 
     document.getElementById('submit-btn').addEventListener('click', () => {
@@ -162,15 +166,30 @@
 
       const applicationData = { ...draft, enrolmentNo: student.EnrolmentNo };
 
-      Server.submitApplication(applicationData,
-        (result) => {
+      google.script.run
+        .withSuccessHandler((result) => {
+          if (!result.success) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Application';
+            const messages = result.errors ? Object.values(result.errors) : [result.error];
+            showAlert(document.getElementById('alert-root'), {
+              title: 'A few things need fixing',
+              message: messages.join(' '),
+              tone: 'danger'
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+          }
+
           clearDraft();
+          setSession({ ...student, hasExistingApplication: true, applicationId: result.applicationId });
+
           document.getElementById('review-view').classList.add('hidden');
           document.getElementById('confirm-view').classList.remove('hidden');
-          document.getElementById('confirm-ref').textContent = result.referenceNo;
+          document.getElementById('confirm-ref').textContent = result.applicationId;
           window.scrollTo({ top: 0, behavior: 'smooth' });
-        },
-        () => {
+        })
+        .withFailureHandler((error) => {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Submit Application';
           showAlert(document.getElementById('alert-root'), {
@@ -178,8 +197,9 @@
             message: 'Something went wrong sending your application. Please try again.',
             tone: 'danger'
           });
-        }
-      );
+          console.error(error);
+        })
+        .submitApplication(applicationData);
     });
   </script>
 </body>

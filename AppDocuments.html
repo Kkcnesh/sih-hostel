@@ -4,12 +4,15 @@
      ========================================================================== -->
 <html lang="en">
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GGSIPU Hostel Portal — Application: Documents</title>
-  <link rel="stylesheet" href="css/stylesheet.css">
+  <?!= include('Stylesheet') ?>
 </head>
 <body>
+  <script>const BASE_URL = '<?= baseUrl ?>';</script>
+
   <div class="page">
     <header class="site-header" id="site-header"></header>
 
@@ -36,13 +39,12 @@
     <footer class="site-footer" id="site-footer"></footer>
   </div>
 
-  <script src="js/mock-data.js"></script>
-  <script src="js/script.js"></script>
+  <?!= include('JavaScript') ?>
   <script>
     const student = requireSession();
     let draft;
     if (student) {
-      if (getApplicationRecord(student.EnrolmentNo)) window.location.href = 'status.html';
+      if (student.hasExistingApplication) window.top.location.href = pageUrl('status');
       draft = requireDraft();
     }
 
@@ -52,7 +54,12 @@
       renderSiteFooter(document.getElementById('site-footer'));
       renderStepNav(document.getElementById('step-nav'), 'documents');
 
-      uploaders = renderUploaders(document.getElementById('documents-container'), updateNextState, draft.documents || {});
+      uploaders = renderUploaders(
+        document.getElementById('documents-container'),
+        updateNextState,
+        draft.documents || {},
+        student.EnrolmentNo
+      );
       updateNextState();
     }
 
@@ -63,7 +70,7 @@
 
     document.getElementById('back-btn').addEventListener('click', () => {
       saveDraftFields({ documents: uploaders.getState() });
-      window.location.href = 'application-4-hostel.html';
+      window.top.location.href = pageUrl('hostel');
     });
 
     document.getElementById('step-form').addEventListener('submit', (e) => {
@@ -77,7 +84,7 @@
         return;
       }
       saveDraftFields({ documents: uploaders.getState() });
-      window.location.href = 'application-6-review.html';
+      window.top.location.href = pageUrl('review');
     });
   </script>
 </body>
