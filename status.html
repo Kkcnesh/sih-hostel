@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<!-- ==========================================================================
+     STATUS TRACKER
+     ==========================================================================
+     Maps to Status.html in the Apps Script build. Requires a session — routes
+     here for a logged-in student who already has an Applications row.
+
+     Status flow (see Server.getApplicationStatus in script.js):
+       submitted -> verification -> allotted | waitlisted
+     The last transition (verification -> allotted/waitlisted) is written by
+     the allocation engine this project doesn't build yet — see the TODO
+     near APPLY_DEMO_OVERRIDE below for how this page previews that state
+     in the meantime.
+     ========================================================================== -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GGSIPU Hostel Portal — Status</title>
+  <link rel="stylesheet" href="css/stylesheet.css">
+  <style>
+    /* ---- page-specific: status ---- */
+    .page-head { padding: var(--space-5) 0 var(--space-2); }
+    .page-head__title { font-size: var(--text-2xl); }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+    }
+    .summary-grid__label {
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-faint);
+      font-weight: 700;
+    }
+    .summary-grid__value { font-family: var(--font-mono); font-size: var(--text-lg); margin-top: 2px; }
+    .corridor-status-line {
+      text-align: center;
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      margin-top: var(--space-4);
+    }
+    .empty-state {
+      text-align: center;
+      padding: var(--space-7) var(--space-4);
+    }
+    .empty-state__icon {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      color: var(--text-faint);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto var(--space-4);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="id-strip" id="id-strip"></header>
+
+    <main>
+      <div class="container">
+        <div class="page-head">
+          <p class="eyebrow">Application Status</p>
+          <h1 class="page-head__title" id="page-title">Where things stand</h1>
+        </div>
+
+        <div id="status-root" class="stack"><!-- populated by JS --></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/mock-data.js"></script>
+  <script src="js/script.js"></script>
+  <script>
+    /* ==========================================================================
+       PAGE GLUE — Status tracker
+       ========================================================================== */
+    const student = requireSession();
+    const statusRoot = document.getElementById('status-root');
+
+    if (student) {
+      renderIdStrip(document.getElementById('id-strip'), student);
+
+      Server.getApplicationStatus(student.EnrolmentNo,
+        (result) => renderStatus(result.application),
+        () => renderEmptyState()
+      );
+    }
+
+    function renderEmptyState() {
+      statusRoot.innerHTML = `
+        <div class="section-card empty-state">
+          <div class="empty-state__icon">${icon('doc')}</div>
+          <h2 style="font-size: var(--text-lg);">No application yet</h2>
+          <p class="text-muted" style="margin-top: 4px;">You haven't submitted a hostel application. Fill it in to get a reference number and start tracking.</p>
+          <a href="application.html" class="btn btn--primary" style="margin-top: var(--space-4);">Start application</a>
+        </div>
+      `;
+    }
+
+    /*
+     * TODO(backend): the allocation engine (not built in this pass) is what
+     * actually moves a record from "verification" to "allotted"/"waitlisted"
+     * and fills in hostelName/roomNo/roommate or waitlistPosition. Until it
+     * exists, this page lets a real submitted record be previewed at any
+     * later stage via a ?demo= query param, e.g. status.html?demo=allotted.
+     * DELETE applyDemoOverride() and the query-param read below once
+     * getApplicationStatus() returns these fields for real.
+     */
+    function applyDemoOverride(record) {
+      const demo = new URLSearchParams(window.location.search).get('demo');
+      if (!['verification', 'allotted', 'waitlisted'].includes(demo)) return record;
+
+      const preview = { ...record, status: demo };
+      if (demo === 'allotted') {
+        preview.hostelName = `${record.hostel === 'Girls' ? 'Girls' : 'Boys'} Hostel — Block ${record.hostel === 'Girls' ? 'A' : 'B'}`;
+        preview.roomNo = 'B-214';
+        preview.roommate = record.roommateEnrolment ? 'Matched with your requested roommate' : 'Not yet assigned';
+      }
+      if (demo === 'waitlisted') {
+        preview.waitlistPosition = 7;
+      }
+      return preview;
+    }
+
+    function renderStatus(rawRecord) {
+      const record = applyDemoOverride(rawRecord);
+
+      const stageLine = {
+        submitted: 'Your application has been received and is queued for verification.',
+        verification: 'The Hostel Office is verifying your documents. This usually takes a few working days.',
+        allotted: 'A room has been allotted — details below.',
+        waitlisted: 'All seats matching your preference are full for now — you are on the waitlist.'
+      }[record.status];
+
+      statusRoot.innerHTML = `
+        <section class="section-card">
+          <div class="summary-grid">
+            <div>
+              <p class="summary-grid__label">Reference No.</p>
+              <p class="summary-grid__value">${record.referenceNo}</p>
+            </div>
+            <div>
+              <p class="summary-grid__label">Submitted On</p>
+              <p class="summary-grid__value">${formatDateDisplay(record.submittedDate)}</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="corridor" id="corridor"></div>
+          <p class="corridor-status-line">${stageLine}</p>
+        </section>
+
+        <section class="section-card">
+          <h2 class="section-card__title" style="font-size: var(--text-base);">Documents Submitted</h2>
+          <div class="checklist" id="doc-checklist"></div>
+        </section>
+
+        <div id="result-slot"></div>
+      `;
+
+      renderCorridor(document.getElementById('corridor'), record.status);
+      renderDocChecklist(record.documents || {});
+      renderResultCard(record);
+    }
+
+    function renderDocChecklist(documents) {
+      const listEl = document.getElementById('doc-checklist');
+      listEl.innerHTML = DOCUMENT_CONFIG.map((cfg) => {
+        const entry = documents[cfg.key];
+        const fileSummary = entry?.files?.length
+          ? (entry.files.length > 1 ? `${entry.files.length} files` : entry.files[0].name)
+          : 'Not submitted';
+        return `
+          <div class="checklist__item">
+            <div class="checklist__icon">${icon('check')}</div>
+            <div class="checklist__label">${cfg.label}</div>
+            <div class="checklist__meta">${fileSummary}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderResultCard(record) {
+      const slot = document.getElementById('result-slot');
+
+      if (record.status === 'allotted') {
+        slot.innerHTML = `
+          <section class="section-card result-card result-card--allotted">
+            <h2 class="section-card__title" style="font-size: var(--text-base);">You're allotted a room</h2>
+            <div class="result-card__grid">
+              <div>
+                <p class="result-card__stat-label">Hostel</p>
+                <p class="result-card__stat-value">${record.hostelName}</p>
+              </div>
+              <div>
+                <p class="result-card__stat-label">Room No.</p>
+                <p class="result-card__stat-value result-card__stat-value--mono">${record.roomNo}</p>
+              </div>
+              <div style="grid-column: 1 / -1;">
+                <p class="result-card__stat-label">Roommate</p>
+                <p class="result-card__stat-value">${record.roommate}</p>
+              </div>
+            </div>
+          </section>
+        `;
+      } else if (record.status === 'waitlisted') {
+        slot.innerHTML = `
+          <section class="section-card result-card result-card--waitlisted">
+            <h2 class="section-card__title" style="font-size: var(--text-base);">You're on the waitlist</h2>
+            ${record.waitlistPosition
+              ? `<div><p class="result-card__stat-label">Waitlist Position</p><p class="result-card__stat-value result-card__stat-value--mono">#${record.waitlistPosition}</p></div>`
+              : `<p class="text-muted">Your position will appear here once seats are finalised.</p>`}
+          </section>
+        `;
+      } else {
+        slot.innerHTML = '';
+      }
+    }
+  </script>
+</body>
+</html>

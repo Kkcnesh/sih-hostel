@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<!-- ==========================================================================
+     LOGIN SCREEN
+     ==========================================================================
+     Maps to Login.html in the Apps Script build. This is the entry point:
+     doGet(e) with no valid session routes here first.
+
+     Flow: EnrolmentNo + DOB -> Server.loginStudent() -> on success, route to
+     Application.html (no record yet) or Status.html (record exists).
+     ========================================================================== -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GGSIPU Hostel Portal — Login</title>
+  <link rel="stylesheet" href="css/stylesheet.css">
+  <style>
+    /* ---- page-specific: login ---- */
+    .login-shell {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: var(--space-6) 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      justify-content: center;
+      margin-bottom: var(--space-6);
+    }
+    .brand__mark {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      background: var(--accent);
+      color: var(--accent-ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 800;
+    }
+    .brand__name {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--text-base);
+      color: var(--text);
+    }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-sm);
+    }
+    .login-card__title { font-size: var(--text-2xl); margin-top: var(--space-2); }
+    .login-card__subtitle { color: var(--text-muted); margin-top: 4px; margin-bottom: var(--space-5); }
+    .demo-box {
+      margin-top: var(--space-5);
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+    .demo-box b { color: var(--text); }
+    .demo-box code { font-family: var(--font-mono); background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <main class="login-shell">
+      <div class="container" style="max-width: 420px;">
+
+        <div class="brand">
+          <div class="brand__mark">H</div>
+          <div class="brand__name">GGSIPU Hostel Portal</div>
+        </div>
+
+        <div class="login-card">
+          <p class="eyebrow">Student Login</p>
+          <h1 class="login-card__title">Check your hostel status</h1>
+          <p class="login-card__subtitle">Sign in with the details on your admission record to apply for a hostel seat or track an existing application.</p>
+
+          <div id="alert-root"></div>
+
+          <form id="login-form" class="stack" novalidate>
+            <div class="field" id="field-enrolment">
+              <label class="field__label" for="enrolmentNo">
+                Enrolment Number <span class="field__tag field__tag--required">Required</span>
+              </label>
+              <input class="field__control mono" type="text" id="enrolmentNo" name="enrolmentNo"
+                     inputmode="numeric" placeholder="e.g. 05114802722" autocomplete="off">
+              <p class="field__error"></p>
+            </div>
+
+            <div class="field" id="field-dob">
+              <label class="field__label" for="dob">
+                Date of Birth <span class="field__tag field__tag--required">Required</span>
+              </label>
+              <input class="field__control" type="date" id="dob" name="dob">
+              <p class="field__error"></p>
+            </div>
+
+            <button type="submit" class="btn btn--primary btn--block" id="login-submit">
+              Log in
+            </button>
+          </form>
+
+          <div class="demo-box">
+            <b>Mockup preview only</b> — try any of these seeded records:<br>
+            <code>05114802722</code> / <code>2004-03-15</code> &middot;
+            <code>04714802722</code> / <code>2004-07-22</code> &middot;
+            <code>09714802722</code> / <code>2003-11-05</code>
+          </div>
+        </div>
+
+        <p class="text-faint" style="text-align:center; font-size: var(--text-xs); margin-top: var(--space-5);">
+          Trouble logging in? Contact the Hostel Office with your enrolment number.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/mock-data.js"></script>
+  <script src="js/script.js"></script>
+  <script>
+    /* ---- page glue: wires the form to Server.loginStudent() ---- */
+    const form = document.getElementById('login-form');
+    const submitBtn = document.getElementById('login-submit');
+    const alertRoot = document.getElementById('alert-root');
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearAlert(alertRoot);
+
+      const enrolmentField = document.getElementById('field-enrolment');
+      const dobField = document.getElementById('field-dob');
+      const enrolmentNo = document.getElementById('enrolmentNo').value;
+      const dob = document.getElementById('dob').value;
+
+      let valid = true;
+      if (!isValidEnrolment(enrolmentNo)) {
+        setFieldError(enrolmentField, 'Enter your enrolment number as it appears on your admission letter.');
+        valid = false;
+      } else {
+        setFieldError(enrolmentField, '');
+      }
+      if (!isFilled(dob)) {
+        setFieldError(dobField, 'Enter your date of birth.');
+        valid = false;
+      } else {
+        setFieldError(dobField, '');
+      }
+      if (!valid) return;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Checking…';
+
+      Server.loginStudent(enrolmentNo, dob,
+        (result) => {
+          setSession(result.student);
+          const existing = getApplicationRecord(result.student.EnrolmentNo);
+          window.location.href = existing ? 'status.html' : 'application.html';
+        },
+        (err) => {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Log in';
+          showAlert(alertRoot, {
+            title: 'We couldn’t log you in',
+            message: err.message,
+            tone: 'danger'
+          });
+        }
+      );
+    });
+  </script>
+</body>
+</html>

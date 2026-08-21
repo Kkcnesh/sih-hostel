@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<!-- ==========================================================================
+     APPLICATION FORM
+     ==========================================================================
+     Maps to Application.html in the Apps Script build. Requires a session
+     (see requireSession() in script.js) — doGet(e) should route here only
+     for logged-in students who don't have an Applications row yet.
+
+     Fields are based on the GGSIPU Hostel Application Form (Annexure-I) and
+     admission checklist, plus the hostel-specific preference fields this
+     project adds on top (Section 5).
+
+     Sections (numbered to match the on-screen section-card__index):
+       1. Personal & Academic Details
+       2. Family & Contact Details
+       3. Local Guardian Details        (mandatory — see section hint)
+       4. Extra-Curricular Activities   (optional)
+       5. Hostel Preferences            (new, not on the paper form)
+       6. Documents
+     ========================================================================== -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GGSIPU Hostel Portal — Application</title>
+  <link rel="stylesheet" href="css/stylesheet.css">
+  <style>
+    /* ---- page-specific: application ---- */
+    .page-head { padding: var(--space-5) 0 var(--space-2); }
+    .page-head__title { font-size: var(--text-2xl); }
+    .page-head__subtitle { color: var(--text-muted); margin-top: 4px; }
+    #form-view.hidden, #confirm-view.hidden { display: none; }
+    .checklist-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="id-strip" id="id-strip"></header>
+
+    <main>
+      <div class="container">
+
+        <!-- ============================ FORM VIEW ============================ -->
+        <div id="form-view">
+          <div class="page-head">
+            <p class="eyebrow">Hostel Application</p>
+            <h1 class="page-head__title">Tell us about yourself</h1>
+            <p class="page-head__subtitle">Fields marked <span class="field__tag field__tag--required" style="vertical-align:1px;">Required</span> are needed to process your application. Everything else is optional.</p>
+          </div>
+
+          <div id="alert-root"></div>
+
+          <form id="application-form" class="stack" novalidate>
+
+            <!-- ============ SECTION 1 — PERSONAL & ACADEMIC DETAILS ============ -->
+            <section class="section-card">
+              <div class="section-card__header">
+                <span class="section-card__index">1</span>
+                <div>
+                  <h2 class="section-card__title">Personal &amp; Academic Details</h2>
+                </div>
+              </div>
+
+              <div class="field-row field-row--2">
+                <div class="field" id="field-fullName">
+                  <label class="field__label" for="fullName">Full Name <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="fullName">
+                  <p class="field__error"></p>
+                </div>
+                <div class="field" id="field-nationality">
+                  <label class="field__label" for="nationality">Nationality <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="nationality" value="Indian">
+                  <p class="field__error"></p>
+                </div>
+              </div>
+
+              <div class="field-row field-row--2">
+                <div class="field">
+                  <label class="field__label" for="dob">Date of Birth <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control mono" type="date" id="dob" disabled>
+                  <p class="field__help">From your admission record</p>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="enrolmentNo">Enrolment No. <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control mono" type="text" id="enrolmentNo" disabled>
+                  <p class="field__help">From your admission record</p>
+                </div>
+              </div>
+
+              <div class="field-row field-row--2">
+                <div class="field">
+                  <label class="field__label" for="courseSchool">Course &amp; School of Study <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="courseSchool" disabled>
+                  <p class="field__help">Incorrect? Contact the Hostel Office.</p>
+                </div>
+                <div class="field" id="field-dateOfJoining">
+                  <label class="field__label" for="dateOfJoining">Date of Joining University <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="date" id="dateOfJoining">
+                  <p class="field__error"></p>
+                </div>
+              </div>
+
+              <fieldset class="field" id="field-category">
+                <legend class="field__label">Category <span class="field__tag field__tag--required">Required</span></legend>
+                <div class="radio-group">
+                  <label class="radio-option"><input type="radio" name="category" value="Delhi"> Delhi</label>
+                  <label class="radio-option"><input type="radio" name="category" value="Outside Delhi"> Outside Delhi</label>
+                  <label class="radio-option"><input type="radio" name="category" value="Transferred"> Transferred</label>
+                </div>
+                <p class="field__error"></p>
+              </fieldset>
+
+              <div class="field" id="field-reservationCategory">
+                <label class="field__label" for="reservationCategory">Reservation Category <span class="field__tag field__tag--required">Required</span></label>
+                <select class="field__control" id="reservationCategory">
+                  <option value="" selected>Select category</option>
+                  <option value="GEN">General (GEN)</option>
+                  <option value="SC">SC</option>
+                  <option value="ST">ST</option>
+                  <option value="PH">PH</option>
+                </select>
+                <p class="field__error"></p>
+              </div>
+            </section>
+
+            <!-- ============ SECTION 2 — FAMILY & CONTACT DETAILS ============ -->
+            <section class="section-card">
+              <div class="section-card__header">
+                <span class="section-card__index">2</span>
+                <div><h2 class="section-card__title">Family &amp; Contact Details</h2></div>
+              </div>
+
+              <div class="field-row field-row--2">
+                <div class="field" id="field-fatherName">
+                  <label class="field__label" for="fatherName">Father's Name <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="fatherName">
+                  <p class="field__error"></p>
+                </div>
+                <div class="field" id="field-motherName">
+                  <label class="field__label" for="motherName">Mother's Name <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="motherName">
+                  <p class="field__error"></p>
+                </div>
+              </div>
+
+              <div class="subgroup">
+                <p class="subgroup__title">Present Address — Residence</p>
+                <div class="field" id="field-resAddress">
+                  <label class="field__label" for="resAddress">Address <span class="field__tag field__tag--required">Required</span></label>
+                  <textarea class="field__control" id="resAddress" rows="2"></textarea>
+                  <p class="field__error"></p>
+                </div>
+                <div class="field-row field-row--2">
+                  <div class="field" id="field-resTel">
+                    <label class="field__label" for="resTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="tel" id="resTel">
+                    <p class="field__error"></p>
+                  </div>
+                  <div class="field" id="field-resEmail">
+                    <label class="field__label" for="resEmail">Email <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="email" id="resEmail">
+                    <p class="field__error"></p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="subgroup">
+                <p class="subgroup__title">Present Address — Office</p>
+                <div class="field">
+                  <label class="field__label" for="officeAddress">Address <span class="field__tag field__tag--optional">Optional</span></label>
+                  <textarea class="field__control" id="officeAddress" rows="2"></textarea>
+                </div>
+                <div class="field-row field-row--2">
+                  <div class="field">
+                    <label class="field__label" for="officeTel">Tel. No. <span class="field__tag field__tag--optional">Optional</span></label>
+                    <input class="field__control" type="tel" id="officeTel">
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="officeEmail">Email <span class="field__tag field__tag--optional">Optional</span></label>
+                    <input class="field__control" type="email" id="officeEmail">
+                  </div>
+                </div>
+              </div>
+
+              <div class="field-row field-row--2">
+                <div class="field" id="field-studentMobile">
+                  <label class="field__label" for="studentMobile">Your Mobile Number <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control mono" type="tel" id="studentMobile" inputmode="numeric" placeholder="10-digit number">
+                  <p class="field__error"></p>
+                </div>
+                <div class="field" id="field-studentEmail">
+                  <label class="field__label" for="studentEmail">Your Email <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="email" id="studentEmail">
+                  <p class="field__error"></p>
+                </div>
+              </div>
+
+              <div class="field" id="field-emergencyAddress">
+                <label class="field__label" for="emergencyAddress">Emergency Contact Address <span class="field__tag field__tag--required">Required</span></label>
+                <textarea class="field__control" id="emergencyAddress" rows="2"></textarea>
+                <p class="field__help">Who should the hostel reach first in an emergency, and where.</p>
+                <p class="field__error"></p>
+              </div>
+            </section>
+
+            <!-- ============ SECTION 3 — LOCAL GUARDIAN DETAILS ============ -->
+            <section class="section-card">
+              <div class="section-card__header">
+                <span class="section-card__index">3</span>
+                <div>
+                  <h2 class="section-card__title">Local Guardian Details</h2>
+                  <p class="section-card__hint">Required — your local guardian is who the hostel contacts first if your family is far from campus.</p>
+                </div>
+              </div>
+
+              <div class="subgroup">
+                <p class="subgroup__title">Guardian — Residence</p>
+                <div class="field" id="field-guardianResAddress">
+                  <label class="field__label" for="guardianResAddress">Address <span class="field__tag field__tag--required">Required</span></label>
+                  <textarea class="field__control" id="guardianResAddress" rows="2"></textarea>
+                  <p class="field__error"></p>
+                </div>
+                <div class="field-row field-row--2">
+                  <div class="field" id="field-guardianResTel">
+                    <label class="field__label" for="guardianResTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="tel" id="guardianResTel">
+                    <p class="field__error"></p>
+                  </div>
+                  <div class="field" id="field-guardianResEmail">
+                    <label class="field__label" for="guardianResEmail">Email <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="email" id="guardianResEmail">
+                    <p class="field__error"></p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="subgroup">
+                <p class="subgroup__title">Guardian — Office</p>
+                <div class="field" id="field-guardianOfficeAddress">
+                  <label class="field__label" for="guardianOfficeAddress">Address <span class="field__tag field__tag--required">Required</span></label>
+                  <textarea class="field__control" id="guardianOfficeAddress" rows="2"></textarea>
+                  <p class="field__error"></p>
+                </div>
+                <div class="field-row field-row--2">
+                  <div class="field" id="field-guardianOfficeTel">
+                    <label class="field__label" for="guardianOfficeTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="tel" id="guardianOfficeTel">
+                    <p class="field__error"></p>
+                  </div>
+                  <div class="field" id="field-guardianOfficeEmail">
+                    <label class="field__label" for="guardianOfficeEmail">Email <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="email" id="guardianOfficeEmail">
+                    <p class="field__error"></p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ============ SECTION 4 — EXTRA-CURRICULAR ACTIVITIES ============ -->
+            <section class="section-card">
+              <div class="section-card__header">
+                <span class="section-card__index">4</span>
+                <div><h2 class="section-card__title">Extra-Curricular Activities</h2></div>
+              </div>
+              <div class="field">
+                <label class="field__label" for="extraCurricular">Tell us briefly <span class="field__tag field__tag--optional">Optional</span></label>
+                <textarea class="field__control" id="extraCurricular" rows="2" placeholder="Sports, societies, clubs, competitions…"></textarea>
+              </div>
+            </section>
+
+            <!-- ============ SECTION 5 — HOSTEL PREFERENCES ============ -->
+            <section class="section-card">
+              <div class="section-card__header">
+                <span class="section-card__index">5</span>
+                <div><h2 class="section-card__title">Hostel Preferences</h2></div>
+              </div>
+
+              <fieldset class="field" id="field-hostel">
+                <legend class="field__label">Hostel <span class="field__tag field__tag--required">Required</span></legend>
+                <div class="choice-group">
+                  <label class="choice-card">
+                    <input type="radio" name="hostel" value="Boys">
+                    <span class="choice-card__body">
+                      <span class="choice-card__label">Boys Hostel</span>
+                      <span class="choice-card__meta">Block B, Dwarka Campus</span>
+                    </span>
+                  </label>
+                  <label class="choice-card">
+                    <input type="radio" name="hostel" value="Girls">
+                    <span class="choice-card__body">
+                      <span class="choice-card__label">Girls Hostel</span>
+                      <span class="choice-card__meta">Block A, Dwarka Campus</span>
+                    </span>
+                  </label>
+                </div>
+                <p class="field__error"></p>
+              </fieldset>
+
+              <fieldset class="field" id="field-roomType">
+                <legend class="field__label">Room Type Preference <span class="field__tag field__tag--required">Required</span></legend>
+                <div class="choice-group">
+                  <label class="choice-card">
+                    <input type="radio" name="roomType" value="Triple-sharing">
+                    <span class="choice-card__body">
+                      <span class="choice-card__label">Triple-sharing</span>
+                      <span class="choice-card__meta">3 students / room</span>
+                    </span>
+                  </label>
+                  <label class="choice-card">
+                    <input type="radio" name="roomType" value="4-sharing">
+                    <span class="choice-card__body">
+                      <span class="choice-card__label">4-sharing</span>
+                      <span class="choice-card__meta">4 students / room</span>
+                    </span>
+                  </label>
+                </div>
+                <p class="field__error"></p>
+              </fieldset>
+
+              <div class="field">
+                <label class="field__label" for="roommateEnrolment">Roommate Preference <span class="field__tag field__tag--optional">Optional</span></label>
+                <input class="field__control mono" type="text" id="roommateEnrolment" inputmode="numeric" placeholder="Friend's enrolment number">
+                <p class="field__help">If your friend also lists you, we'll try to seat you together. This isn't guaranteed — it depends on room availability.</p>
+              </div>
+            </section>
+
+            <!-- ============ SECTION 6 — DOCUMENTS ============ -->
+            <section class="section-card">
+              <div class="section-card__header">
+                <span class="section-card__index">6</span>
+                <div>
+                  <h2 class="section-card__title">Documents</h2>
+                  <p class="section-card__hint">Accepted formats: JPG, PNG or PDF, up to 5 MB each.</p>
+                </div>
+              </div>
+              <div class="stack" id="documents-container"><!-- populated by renderUploaders() --></div>
+            </section>
+
+          </form>
+        </div>
+
+        <!-- ============================ CONFIRMATION VIEW ============================ -->
+        <div id="confirm-view" class="hidden">
+          <div class="section-card confirm-panel">
+            <div class="confirm-panel__badge">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 14.5L11.5 20L22 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <p class="eyebrow">Application Submitted</p>
+            <h1 style="font-size: var(--text-2xl);">You're on the list</h1>
+            <p class="text-muted">Keep this reference number — you'll need it if you contact the Hostel Office.</p>
+            <div class="confirm-panel__ref mono" id="confirm-ref"></div>
+            <a href="status.html" class="btn btn--primary" style="margin-top: var(--space-3);">Track your application</a>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- ============================ STICKY SUBMIT BAR ============================ -->
+    <div class="action-bar" id="action-bar">
+      <p class="action-bar__hint" id="action-bar-hint">Fill in the required fields and documents above to submit.</p>
+      <button type="submit" form="application-form" class="btn btn--primary btn--block" id="submit-btn" disabled>
+        Submit Application
+      </button>
+    </div>
+  </div>
+
+  <script src="js/mock-data.js"></script>
+  <script src="js/script.js"></script>
+  <script>
+    /* ==========================================================================
+       PAGE GLUE — Application form
+       ========================================================================== */
+    const student = requireSession();
+
+    if (student) {
+      // A student with an existing application record has nothing left to fill in.
+      if (getApplicationRecord(student.EnrolmentNo)) {
+        window.location.href = 'status.html';
+      }
+
+      renderIdStrip(document.getElementById('id-strip'), student);
+
+      // Prefill fields sourced from the Eligibility record (locked, not re-entered).
+      document.getElementById('fullName').value = student.Name;
+      document.getElementById('dob').value = student.DOB;
+      document.getElementById('enrolmentNo').value = student.EnrolmentNo;
+      document.getElementById('courseSchool').value = `${student.Course} — ${student.School}`;
+
+      // Sensible default for a gender-segregated hostel system — still changeable.
+      const defaultHostel = student.Gender === 'Female' ? 'Girls' : 'Boys';
+      const defaultHostelInput = document.querySelector(`input[name="hostel"][value="${defaultHostel}"]`);
+      if (defaultHostelInput) defaultHostelInput.checked = true;
+    }
+
+    // ---- required text-like fields: id, and an optional stricter validator ----
+    const REQUIRED_FIELDS = [
+      { id: 'fullName' },
+      { id: 'nationality' },
+      { id: 'dateOfJoining' },
+      { id: 'fatherName' },
+      { id: 'motherName' },
+      { id: 'resAddress' },
+      { id: 'resTel' },
+      { id: 'resEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
+      { id: 'studentMobile', validator: isValidMobile, invalidMsg: 'Enter a valid 10-digit mobile number.' },
+      { id: 'studentEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
+      { id: 'emergencyAddress' },
+      { id: 'guardianResAddress' },
+      { id: 'guardianResTel' },
+      { id: 'guardianResEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
+      { id: 'guardianOfficeAddress' },
+      { id: 'guardianOfficeTel' },
+      { id: 'guardianOfficeEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' }
+    ];
+    const REQUIRED_RADIO_GROUPS = ['category', 'hostel', 'roomType'];
+    const REQUIRED_SELECTS = ['reservationCategory'];
+
+    function validateTextField(cfg) {
+      const fieldEl = document.getElementById(`field-${cfg.id}`);
+      const value = document.getElementById(cfg.id).value;
+      if (!isFilled(value)) {
+        setFieldError(fieldEl, 'This field is required.');
+        return false;
+      }
+      if (cfg.validator && !cfg.validator(value)) {
+        setFieldError(fieldEl, cfg.invalidMsg);
+        return false;
+      }
+      setFieldError(fieldEl, '');
+      return true;
+    }
+
+    function validateRadioGroup(name) {
+      const fieldEl = document.getElementById(`field-${name}`);
+      const checked = document.querySelector(`input[name="${name}"]:checked`);
+      setFieldError(fieldEl, checked ? '' : 'Please select one option.');
+      return !!checked;
+    }
+
+    function validateSelect(id) {
+      const fieldEl = document.getElementById(`field-${id}`);
+      const value = document.getElementById(id).value;
+      setFieldError(fieldEl, value ? '' : 'Please select an option.');
+      return !!value;
+    }
+
+    // ---- documents ----
+    const uploaders = renderUploaders(document.getElementById('documents-container'), updateSubmitState);
+
+    // ---- live validation + submit gating ----
+    const submitBtn = document.getElementById('submit-btn');
+    const actionHint = document.getElementById('action-bar-hint');
+
+    function currentlyValid() {
+      const fieldsOk = REQUIRED_FIELDS.every((cfg) => {
+        const value = document.getElementById(cfg.id).value;
+        return isFilled(value) && (!cfg.validator || cfg.validator(value));
+      });
+      const radiosOk = REQUIRED_RADIO_GROUPS.every((name) => document.querySelector(`input[name="${name}"]:checked`));
+      const selectsOk = REQUIRED_SELECTS.every((id) => document.getElementById(id).value);
+      return fieldsOk && radiosOk && selectsOk && uploaders.allRequiredDone();
+    }
+
+    function updateSubmitState() {
+      const ok = currentlyValid();
+      submitBtn.disabled = !ok;
+      actionHint.textContent = ok
+        ? 'Looks good — you can submit now.'
+        : 'Fill in the required fields and documents above to submit.';
+    }
+
+    document.getElementById('application-form').addEventListener('input', updateSubmitState);
+    document.getElementById('application-form').addEventListener('change', updateSubmitState);
+    updateSubmitState();
+
+    // ---- submit ----
+    document.getElementById('application-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const textOk = REQUIRED_FIELDS.map(validateTextField).every(Boolean);
+      const radiosOk = REQUIRED_RADIO_GROUPS.map(validateRadioGroup).every(Boolean);
+      const selectsOk = REQUIRED_SELECTS.map(validateSelect).every(Boolean);
+      const docsOk = uploaders.allRequiredDone();
+
+      if (!(textOk && radiosOk && selectsOk && docsOk)) {
+        showAlert(document.getElementById('alert-root'), {
+          title: 'A few things need fixing',
+          message: 'Check the highlighted fields below — required documents count too.',
+          tone: 'danger'
+        });
+        document.querySelector('.field--invalid, .uploader--error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting…';
+
+      const applicationData = {
+        enrolmentNo: student.EnrolmentNo,
+        name: document.getElementById('fullName').value,
+        nationality: document.getElementById('nationality').value,
+        dob: student.DOB,
+        courseSchool: document.getElementById('courseSchool').value,
+        dateOfJoining: document.getElementById('dateOfJoining').value,
+        category: document.querySelector('input[name="category"]:checked').value,
+        reservationCategory: document.getElementById('reservationCategory').value,
+        fatherName: document.getElementById('fatherName').value,
+        motherName: document.getElementById('motherName').value,
+        residenceAddress: {
+          address: document.getElementById('resAddress').value,
+          tel: document.getElementById('resTel').value,
+          email: document.getElementById('resEmail').value
+        },
+        officeAddress: {
+          address: document.getElementById('officeAddress').value,
+          tel: document.getElementById('officeTel').value,
+          email: document.getElementById('officeEmail').value
+        },
+        studentMobile: document.getElementById('studentMobile').value,
+        studentEmail: document.getElementById('studentEmail').value,
+        emergencyAddress: document.getElementById('emergencyAddress').value,
+        localGuardian: {
+          residence: {
+            address: document.getElementById('guardianResAddress').value,
+            tel: document.getElementById('guardianResTel').value,
+            email: document.getElementById('guardianResEmail').value
+          },
+          office: {
+            address: document.getElementById('guardianOfficeAddress').value,
+            tel: document.getElementById('guardianOfficeTel').value,
+            email: document.getElementById('guardianOfficeEmail').value
+          }
+        },
+        extraCurricular: document.getElementById('extraCurricular').value,
+        hostel: document.querySelector('input[name="hostel"]:checked').value,
+        roomType: document.querySelector('input[name="roomType"]:checked').value,
+        roommateEnrolment: document.getElementById('roommateEnrolment').value,
+        documents: uploaders.getState()
+      };
+
+      // TODO(backend): once the allocation engine exists, submitApplication()
+      // is the row it will read from — this is the hand-off point.
+      Server.submitApplication(applicationData,
+        (result) => {
+          document.getElementById('form-view').classList.add('hidden');
+          document.getElementById('confirm-view').classList.remove('hidden');
+          document.getElementById('action-bar').style.display = 'none';
+          document.getElementById('confirm-ref').textContent = result.referenceNo;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+        () => {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Application';
+          showAlert(document.getElementById('alert-root'), {
+            title: 'Submission failed',
+            message: 'Something went wrong sending your application. Please try again.',
+            tone: 'danger'
+          });
+        }
+      );
+    });
+  </script>
+</body>
+</html>
