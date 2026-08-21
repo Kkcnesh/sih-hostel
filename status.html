@@ -9,7 +9,7 @@
        submitted -> verification -> allotted | waitlisted
      The last transition (verification -> allotted/waitlisted) is written by
      the allocation engine this project doesn't build yet — see the TODO
-     near APPLY_DEMO_OVERRIDE below for how this page previews that state
+     near applyDemoOverride() below for how this page previews that state
      in the meantime.
      ========================================================================== -->
 <html lang="en">
@@ -19,56 +19,23 @@
   <title>GGSIPU Hostel Portal — Status</title>
   <link rel="stylesheet" href="css/stylesheet.css">
   <style>
-    /* ---- page-specific: status ---- */
-    .page-head { padding: var(--space-5) 0 var(--space-2); }
-    .page-head__title { font-size: var(--text-2xl); }
-    .summary-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--space-4);
-    }
-    .summary-grid__label {
-      font-size: var(--text-xs);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-faint);
-      font-weight: 700;
-    }
-    .summary-grid__value { font-family: var(--font-mono); font-size: var(--text-lg); margin-top: 2px; }
-    .corridor-status-line {
-      text-align: center;
-      font-size: var(--text-sm);
-      color: var(--text-muted);
-      margin-top: var(--space-4);
-    }
-    .empty-state {
-      text-align: center;
-      padding: var(--space-7) var(--space-4);
-    }
-    .empty-state__icon {
-      width: 56px; height: 56px;
-      border-radius: 50%;
-      background: var(--surface-2);
-      color: var(--text-faint);
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto var(--space-4);
-    }
+    .corridor-status-line { text-align: center; font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-4); }
   </style>
 </head>
 <body>
   <div class="page">
-    <header class="id-strip" id="id-strip"></header>
+    <header class="site-header" id="site-header"></header>
 
     <main>
-      <div class="container">
-        <div class="page-head">
-          <p class="eyebrow">Application Status</p>
-          <h1 class="page-head__title" id="page-title">Where things stand</h1>
-        </div>
+      <div class="container container--narrow">
+        <p class="eyebrow">Application Status</p>
+        <h1 style="font-size: var(--text-2xl); margin: 4px 0 var(--space-5);">Where things stand</h1>
 
         <div id="status-root" class="stack"><!-- populated by JS --></div>
       </div>
     </main>
+
+    <footer class="site-footer" id="site-footer"></footer>
   </div>
 
   <script src="js/mock-data.js"></script>
@@ -81,7 +48,8 @@
     const statusRoot = document.getElementById('status-root');
 
     if (student) {
-      renderIdStrip(document.getElementById('id-strip'), student);
+      renderSiteHeader(document.getElementById('site-header'), { activeNav: 'status' });
+      renderSiteFooter(document.getElementById('site-footer'));
 
       Server.getApplicationStatus(student.EnrolmentNo,
         (result) => renderStatus(result.application),
@@ -91,11 +59,11 @@
 
     function renderEmptyState() {
       statusRoot.innerHTML = `
-        <div class="section-card empty-state">
+        <div class="panel empty-state">
           <div class="empty-state__icon">${icon('doc')}</div>
           <h2 style="font-size: var(--text-lg);">No application yet</h2>
           <p class="text-muted" style="margin-top: 4px;">You haven't submitted a hostel application. Fill it in to get a reference number and start tracking.</p>
-          <a href="application.html" class="btn btn--primary" style="margin-top: var(--space-4);">Start application</a>
+          <a href="application-1-personal.html" class="btn btn--primary" style="margin-top: var(--space-4);">Start application</a>
         </div>
       `;
     }
@@ -136,7 +104,7 @@
       }[record.status];
 
       statusRoot.innerHTML = `
-        <section class="section-card">
+        <section class="panel">
           <div class="summary-grid">
             <div>
               <p class="summary-grid__label">Reference No.</p>
@@ -149,13 +117,13 @@
           </div>
         </section>
 
-        <section class="section-card">
+        <section class="panel">
           <div class="corridor" id="corridor"></div>
           <p class="corridor-status-line">${stageLine}</p>
         </section>
 
-        <section class="section-card">
-          <h2 class="section-card__title" style="font-size: var(--text-base);">Documents Submitted</h2>
+        <section class="panel">
+          <h2 class="panel__title" style="font-size: var(--text-base);">Documents Submitted</h2>
           <div class="checklist" id="doc-checklist"></div>
         </section>
 
@@ -189,8 +157,8 @@
 
       if (record.status === 'allotted') {
         slot.innerHTML = `
-          <section class="section-card result-card result-card--allotted">
-            <h2 class="section-card__title" style="font-size: var(--text-base);">You're allotted a room</h2>
+          <section class="panel result-card result-card--allotted">
+            <h2 class="panel__title" style="font-size: var(--text-base);">You're allotted a room</h2>
             <div class="result-card__grid">
               <div>
                 <p class="result-card__stat-label">Hostel</p>
@@ -198,7 +166,7 @@
               </div>
               <div>
                 <p class="result-card__stat-label">Room No.</p>
-                <p class="result-card__stat-value result-card__stat-value--mono">${record.roomNo}</p>
+                <p class="result-card__stat-value">${record.roomNo}</p>
               </div>
               <div style="grid-column: 1 / -1;">
                 <p class="result-card__stat-label">Roommate</p>
@@ -209,10 +177,10 @@
         `;
       } else if (record.status === 'waitlisted') {
         slot.innerHTML = `
-          <section class="section-card result-card result-card--waitlisted">
-            <h2 class="section-card__title" style="font-size: var(--text-base);">You're on the waitlist</h2>
+          <section class="panel result-card result-card--waitlisted">
+            <h2 class="panel__title" style="font-size: var(--text-base);">You're on the waitlist</h2>
             ${record.waitlistPosition
-              ? `<div><p class="result-card__stat-label">Waitlist Position</p><p class="result-card__stat-value result-card__stat-value--mono">#${record.waitlistPosition}</p></div>`
+              ? `<div><p class="result-card__stat-label">Waitlist Position</p><p class="result-card__stat-value">#${record.waitlistPosition}</p></div>`
               : `<p class="text-muted">Your position will appear here once seats are finalised.</p>`}
           </section>
         `;

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<!-- ==========================================================================
+     APPLICATION — STEP 3: LOCAL GUARDIAN DETAILS
+     ========================================================================== -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GGSIPU Hostel Portal — Application: Local Guardian</title>
+  <link rel="stylesheet" href="css/stylesheet.css">
+</head>
+<body>
+  <div class="page">
+    <header class="site-header" id="site-header"></header>
+
+    <main>
+      <div class="container container--narrow">
+        <p class="eyebrow">Hostel Application &middot; Step 3 of 6</p>
+        <h1 style="font-size: var(--text-2xl); margin: 4px 0 var(--space-5);">Local Guardian Details</h1>
+
+        <div id="step-nav" class="step-nav"></div>
+        <div id="alert-root"></div>
+
+        <form id="step-form" class="panel" novalidate>
+          <p class="panel__hint" style="margin-top: -8px;">Required — your local guardian is who the hostel contacts first if your family is far from campus.</p>
+
+          <div class="subgroup">
+            <p class="subgroup__title">Guardian — Residence</p>
+            <div class="field" id="field-guardianResAddress">
+              <label class="field__label" for="guardianResAddress">Address <span class="field__tag field__tag--required">Required</span></label>
+              <textarea class="field__control" id="guardianResAddress" rows="2"></textarea>
+              <p class="field__error"></p>
+            </div>
+            <div class="field-row">
+              <div class="field" id="field-guardianResTel">
+                <label class="field__label" for="guardianResTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                <input class="field__control" type="tel" id="guardianResTel">
+                <p class="field__error"></p>
+              </div>
+              <div class="field" id="field-guardianResEmail">
+                <label class="field__label" for="guardianResEmail">Email <span class="field__tag field__tag--required">Required</span></label>
+                <input class="field__control" type="email" id="guardianResEmail">
+                <p class="field__error"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="subgroup">
+            <p class="subgroup__title">Guardian — Office</p>
+            <div class="field" id="field-guardianOfficeAddress">
+              <label class="field__label" for="guardianOfficeAddress">Address <span class="field__tag field__tag--required">Required</span></label>
+              <textarea class="field__control" id="guardianOfficeAddress" rows="2"></textarea>
+              <p class="field__error"></p>
+            </div>
+            <div class="field-row">
+              <div class="field" id="field-guardianOfficeTel">
+                <label class="field__label" for="guardianOfficeTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                <input class="field__control" type="tel" id="guardianOfficeTel">
+                <p class="field__error"></p>
+              </div>
+              <div class="field" id="field-guardianOfficeEmail">
+                <label class="field__label" for="guardianOfficeEmail">Email <span class="field__tag field__tag--required">Required</span></label>
+                <input class="field__control" type="email" id="guardianOfficeEmail">
+                <p class="field__error"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button type="button" class="btn btn--secondary" id="back-btn">Back</button>
+            <button type="submit" class="btn btn--primary" id="next-btn">Next: Hostel Preferences</button>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <footer class="site-footer" id="site-footer"></footer>
+  </div>
+
+  <script src="js/mock-data.js"></script>
+  <script src="js/script.js"></script>
+  <script>
+    const student = requireSession();
+    let draft;
+    if (student) {
+      if (getApplicationRecord(student.EnrolmentNo)) window.location.href = 'status.html';
+      draft = requireDraft();
+    }
+
+    if (student && draft) {
+      renderSiteHeader(document.getElementById('site-header'), { activeNav: 'apply' });
+      renderSiteFooter(document.getElementById('site-footer'));
+      renderStepNav(document.getElementById('step-nav'), 'guardian');
+
+      document.getElementById('guardianResAddress').value = draft.localGuardian?.residence?.address ?? '';
+      document.getElementById('guardianResTel').value = draft.localGuardian?.residence?.tel ?? '';
+      document.getElementById('guardianResEmail').value = draft.localGuardian?.residence?.email ?? '';
+      document.getElementById('guardianOfficeAddress').value = draft.localGuardian?.office?.address ?? '';
+      document.getElementById('guardianOfficeTel').value = draft.localGuardian?.office?.tel ?? '';
+      document.getElementById('guardianOfficeEmail').value = draft.localGuardian?.office?.email ?? '';
+    }
+
+    const REQUIRED_FIELDS = [
+      { id: 'guardianResAddress' },
+      { id: 'guardianResTel' },
+      { id: 'guardianResEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
+      { id: 'guardianOfficeAddress' },
+      { id: 'guardianOfficeTel' },
+      { id: 'guardianOfficeEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' }
+    ];
+
+    function validateTextField(cfg) {
+      const fieldEl = document.getElementById(`field-${cfg.id}`);
+      const value = document.getElementById(cfg.id).value;
+      if (!isFilled(value)) {
+        setFieldError(fieldEl, 'This field is required.');
+        return false;
+      }
+      if (cfg.validator && !cfg.validator(value)) {
+        setFieldError(fieldEl, cfg.invalidMsg);
+        return false;
+      }
+      setFieldError(fieldEl, '');
+      return true;
+    }
+
+    function currentFields() {
+      return {
+        localGuardian: {
+          residence: {
+            address: document.getElementById('guardianResAddress').value,
+            tel: document.getElementById('guardianResTel').value,
+            email: document.getElementById('guardianResEmail').value
+          },
+          office: {
+            address: document.getElementById('guardianOfficeAddress').value,
+            tel: document.getElementById('guardianOfficeTel').value,
+            email: document.getElementById('guardianOfficeEmail').value
+          }
+        }
+      };
+    }
+
+    document.getElementById('back-btn').addEventListener('click', () => {
+      saveDraftFields(currentFields());
+      window.location.href = 'application-2-family.html';
+    });
+
+    document.getElementById('step-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const ok = REQUIRED_FIELDS.map(validateTextField).every(Boolean);
+      if (!ok) {
+        showAlert(document.getElementById('alert-root'), {
+          title: 'A few things need fixing',
+          message: 'Check the highlighted fields below.',
+          tone: 'danger'
+        });
+        document.querySelector('.field--invalid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      saveDraftFields(currentFields());
+      window.location.href = 'application-4-hostel.html';
+    });
+  </script>
+</body>
+</html>

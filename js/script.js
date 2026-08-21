@@ -9,13 +9,16 @@
    -----------------
    1.  Server stand-ins        (mirrors Code.gs — this is the porting map)
    2.  Session helpers         (who's logged in, right now)
-   3.  Application record store (mock "Applications" sheet, one row/student)
-   4.  Validation helpers
-   5.  Formatting helpers
-   6.  Toast / inline alerts
-   7.  Document uploader component
-   8.  Corridor status tracker renderer
-   9.  Small icon set (inline SVG, no external assets)
+   3.  Site header / footer renderer (shared chrome on every page)
+   4.  Application draft store (in-progress wizard answers, steps 1–6)
+   5.  Application record store (the final submitted "Applications" row)
+   6.  Validation helpers
+   7.  Formatting helpers
+   8.  Toast / inline alerts
+   9.  Document uploader component
+   10. Step wizard nav renderer
+   11. Corridor status tracker renderer
+   12. Small icon set (inline SVG, no external assets)
    ========================================================================== */
 
 
@@ -144,28 +147,111 @@ function requireSession() {
   return student;
 }
 
-/** Renders the sticky campus-ID-card style bar used on Application & Status pages. */
-function renderIdStrip(rootEl, student) {
-  const initial = student.Name.trim().charAt(0).toUpperCase();
+/** Where "Apply for Hostel" / a fresh login should land: resume status if a record already exists. */
+function applicationEntryUrl(enrolmentNo) {
+  return getApplicationRecord(enrolmentNo) ? 'status.html' : 'application-1-personal.html';
+}
+
+
+/* ==========================================================================
+   3. SITE HEADER / FOOTER RENDERER
+   ==========================================================================
+   Shared chrome for every page — matches the university's own subsite
+   header structure (slim navy utility row, bolder row with the crest and
+   bold orange section links) so the portal reads as part of the same site.
+
+   In the Apps Script build this becomes Header.html / Footer.html partials
+   pulled in via <?!= include('Header') ?> — it's kept as JS here instead of
+   duplicated per-file so the whole site's chrome updates from one place
+   while this is still a static mockup.
+   ========================================================================== */
+function renderSiteHeader(rootEl, { activeNav = null } = {}) {
+  const student = getSession();
+
+  const utilityRight = student
+    ? `
+      <span class="site-header__student"><b>${student.Name}</b> &nbsp;${student.EnrolmentNo}</span>
+      <button type="button" data-role="logout">Log Out</button>
+    `
+    : `<a href="index.html">Home</a><a href="index.html">Contact Hostel Office</a>`;
+
+  const navLinks = student
+    ? `
+      <a href="${applicationEntryUrl(student.EnrolmentNo)}" ${activeNav === 'apply' ? 'aria-current="page"' : ''}>Apply for Hostel</a>
+      <a href="status.html" ${activeNav === 'status' ? 'aria-current="page"' : ''}>Track Status</a>
+    `
+    : `<a href="index.html" aria-current="page">Student Login</a>`;
+
   rootEl.innerHTML = `
-    <div class="id-strip__inner">
-      <div class="id-strip__chip">${initial}</div>
-      <div class="id-strip__text">
-        <div class="id-strip__name">${student.Name}</div>
-        <div class="id-strip__meta mono">${student.EnrolmentNo} · ${student.Course}</div>
+    <div class="site-header__utility">
+      <div class="site-header__utility-inner">${utilityRight}</div>
+    </div>
+    <div class="site-header__main">
+      <div class="site-header__crest">H</div>
+      <div class="site-header__titles">
+        <div class="site-header__org">Guru Gobind Singh Indraprastha University</div>
+        <div class="site-header__sub">Hostel Allocation Portal</div>
       </div>
-      <button type="button" class="btn btn--ghost btn--sm id-strip__action" data-role="logout">Log out</button>
+      <nav class="site-nav">${navLinks}</nav>
     </div>
   `;
-  rootEl.querySelector('[data-role="logout"]').addEventListener('click', () => {
+
+  rootEl.querySelector('[data-role="logout"]')?.addEventListener('click', () => {
     clearSession();
     window.location.href = 'index.html';
   });
 }
 
+function renderSiteFooter(rootEl) {
+  rootEl.innerHTML = `
+    <div class="site-footer__inner">GURU GOBIND SINGH INDRAPRASTHA UNIVERSITY — HOSTEL ALLOCATION PORTAL</div>
+  `;
+}
+
 
 /* ==========================================================================
-   3. APPLICATION RECORD STORE
+   4. APPLICATION DRAFT STORE
+   ==========================================================================
+   Holds in-progress answers as a student moves through the 6 application
+   steps, before final submission. Each step page reads its own fields out
+   of this on load (so Back/Next never loses work) and writes into it via
+   saveDraftFields() before navigating on.
+
+   TODO(backend): a production version should persist this server-side too
+   (e.g. a PropertiesService-backed draft, or an "in progress" sheet row) so
+   a student who closes the tab mid-application doesn't lose their answers —
+   sessionStorage alone only survives within one browser tab session.
+   ========================================================================== */
+const DRAFT_KEY = 'hostelApplicationDraft';
+
+function getDraft() {
+  const raw = sessionStorage.getItem(DRAFT_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
+function saveDraftFields(fields) {
+  const draft = { ...(getDraft() || {}), ...fields };
+  sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  return draft;
+}
+
+function clearDraft() {
+  sessionStorage.removeItem(DRAFT_KEY);
+}
+
+/** Call at the top of steps 2–6: bounces back to step 1 if there's nothing to resume. */
+function requireDraft() {
+  const draft = getDraft();
+  if (!draft) {
+    window.location.href = 'application-1-personal.html';
+    return null;
+  }
+  return draft;
+}
+
+
+/* ==========================================================================
+   5. APPLICATION RECORD STORE
    ==========================================================================
    Stands in for the "Applications" Sheet — one record per EnrolmentNo.
    Real version: a row in a Sheet, read/written via SpreadsheetApp.
@@ -189,7 +275,7 @@ function saveApplicationRecord(record) {
 
 
 /* ==========================================================================
-   4. VALIDATION HELPERS
+   6. VALIDATION HELPERS
    ========================================================================== */
 function isFilled(value) {
   return typeof value === 'string' ? value.trim().length > 0 : !!value;
@@ -223,7 +309,7 @@ function setFieldError(fieldEl, message) {
 
 
 /* ==========================================================================
-   5. FORMATTING HELPERS
+   7. FORMATTING HELPERS
    ========================================================================== */
 function generateReferenceNumber() {
   const year = new Date().getFullYear();
@@ -246,7 +332,7 @@ function formatDateDisplay(isoOrDate) {
 
 
 /* ==========================================================================
-   6. TOAST / INLINE ALERTS
+   8. TOAST / INLINE ALERTS
    ========================================================================== */
 function showAlert(rootEl, { title, message, tone = 'danger' }) {
   rootEl.innerHTML = '';
@@ -263,7 +349,7 @@ function clearAlert(rootEl) {
 
 
 /* ==========================================================================
-   7. DOCUMENT UPLOADER COMPONENT
+   9. DOCUMENT UPLOADER COMPONENT
    ==========================================================================
    Builds all six document uploaders from DOCUMENT_CONFIG and wires up a
    fake-but-realistic upload flow: pick file -> validate type/size ->
@@ -294,13 +380,18 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 /**
  * Renders every configured uploader into containerEl and wires interaction.
+ * `prefill` (optional) is a key -> {done, files} map — e.g. from a saved
+ * draft — so a student returning to this step sees earlier uploads still
+ * marked done instead of being asked to re-attach them.
  * Returns { getState, onChange } so the page can gate the submit button.
  */
-function renderUploaders(containerEl, onChangeCallback) {
+function renderUploaders(containerEl, onChangeCallback, prefill = {}) {
   const state = {}; // key -> { done: bool, files: [{name, size}] }
 
   DOCUMENT_CONFIG.forEach((cfg) => {
-    state[cfg.key] = { done: false, files: [] };
+    state[cfg.key] = prefill[cfg.key]?.done
+      ? { done: true, files: prefill[cfg.key].files }
+      : { done: false, files: [] };
     containerEl.appendChild(buildUploaderNode(cfg, state, onChangeCallback));
   });
 
@@ -319,19 +410,23 @@ function buildUploaderNode(cfg, state, onChangeCallback) {
     ? '<span class="field__tag field__tag--required">Required</span>'
     : '<span class="field__tag field__tag--optional">Optional</span>';
 
+  const already = state[cfg.key];
+  const startDone = already.done;
+
   wrap.innerHTML = `
-    <div class="uploader__icon" data-role="icon">${icon('doc')}</div>
+    <div class="uploader__icon" data-role="icon">${icon(startDone ? 'check' : 'doc')}</div>
     <div class="uploader__body">
       <div class="uploader__title">${cfg.label} ${tag}</div>
-      <div class="uploader__filename" data-role="filename"></div>
-      <div class="uploader__status" data-role="status">${cfg.help}</div>
+      <div class="uploader__filename" data-role="filename">${startDone ? already.files.map((f) => f.name).join(', ') : ''}</div>
+      <div class="uploader__status" data-role="status">${startDone ? (already.files.length > 1 ? `${already.files.length} files uploaded` : 'Uploaded') : cfg.help}</div>
       <div class="uploader__progress"><div class="uploader__progress-bar" data-role="progress-bar"></div></div>
     </div>
     <div class="uploader__action">
-      <button type="button" class="btn btn--secondary btn--sm" data-role="trigger">Choose file</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-role="trigger">${startDone ? 'Replace' : 'Choose file'}</button>
       <input type="file" data-role="input" accept="${cfg.accept}" ${cfg.multiple ? 'multiple' : ''}>
     </div>
   `;
+  if (startDone) wrap.classList.add('uploader--done');
 
   const input = wrap.querySelector('[data-role="input"]');
   const trigger = wrap.querySelector('[data-role="trigger"]');
@@ -386,7 +481,38 @@ function buildUploaderNode(cfg, state, onChangeCallback) {
 
 
 /* ==========================================================================
-   8. CORRIDOR STATUS TRACKER RENDERER
+   10. STEP WIZARD NAV RENDERER
+   ==========================================================================
+   The numbered progress bar shown at the top of every Application step
+   page (1 Personal -> ... -> 6 Review). Purely a progress readout — the
+   items aren't clickable, since a step can depend on data saved by the
+   one before it (see requireDraft() above).
+   ========================================================================== */
+const APPLICATION_STEPS = [
+  { key: 'personal', label: 'Personal' },
+  { key: 'family', label: 'Family' },
+  { key: 'guardian', label: 'Guardian' },
+  { key: 'hostel', label: 'Hostel' },
+  { key: 'documents', label: 'Documents' },
+  { key: 'review', label: 'Review' }
+];
+
+function renderStepNav(rootEl, currentKey) {
+  const currentIndex = APPLICATION_STEPS.findIndex((s) => s.key === currentKey);
+  rootEl.innerHTML = APPLICATION_STEPS.map((step, i) => {
+    const state = i < currentIndex ? 'done' : i === currentIndex ? 'active' : 'upcoming';
+    const num = state === 'done' ? icon('check') : i + 1;
+    return `
+      <div class="step-nav__item step-nav__item--${state}">
+        <div class="step-nav__num">${num}</div>
+        <div class="step-nav__label">${step.label}</div>
+      </div>`;
+  }).join('');
+}
+
+
+/* ==========================================================================
+   11. CORRIDOR STATUS TRACKER RENDERER
    ==========================================================================
    Signature element for Status.html: three stages rendered as numbered
    doors along a hallway. statusKey is one of:
@@ -426,7 +552,7 @@ function renderCorridor(containerEl, statusKey) {
 
 
 /* ==========================================================================
-   9. ICON SET  (inline SVG — no external icon library)
+   12. ICON SET  (inline SVG — no external icon library)
    ========================================================================== */
 function icon(name) {
   switch (name) {
