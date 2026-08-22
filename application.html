@@ -346,6 +346,39 @@
     const gateView = document.getElementById('gate-view');
     const wizardView = document.getElementById('wizard-view');
 
+    /* ---- step metadata + wizard state ----
+       Declared here, above the gate check below, because the gate check's
+       else-branch calls initWizard() immediately — and initWizard() reads
+       and assigns draft/currentStepIndex/STEP_ORDER. A `let`/`const`
+       binding only becomes usable once its own declaration line has run
+       (the temporal dead zone); if these stayed below the gate check as
+       they previously did, that immediate initWizard() call would throw
+       "Cannot access 'draft' before initialization" before ever reaching
+       its own declaration. Function declarations (initWizard, showStep,
+       etc. below) don't have this problem — they're hoisted whole —
+       only these let/const bindings do. */
+    const STEP_ORDER = ['personal', 'family', 'guardian', 'hostel', 'documents', 'review'];
+    const STEP_TITLES = {
+      personal: 'Personal & Academic Details',
+      family: 'Family & Contact Details',
+      guardian: 'Local Guardian Details',
+      hostel: 'Hostel Preferences',
+      documents: 'Documents',
+      review: 'Review & Submit'
+    };
+    const NEXT_LABELS = {
+      personal: 'Next: Family & Contact Details',
+      family: 'Next: Local Guardian Details',
+      guardian: 'Next: Hostel Preferences',
+      hostel: 'Next: Documents',
+      documents: 'Next: Review & Submit',
+      review: 'Submit Application'
+    };
+
+    let currentStepIndex = 0;
+    let draft = {};
+    let uploaders;
+
     if (!student) {
       renderSiteHeader(document.getElementById('site-header'));
       renderSiteFooter(document.getElementById('site-footer'));
@@ -373,29 +406,6 @@
       renderSiteFooter(document.getElementById('site-footer'));
       initWizard();
     }
-
-    /* ---- step metadata ---- */
-    const STEP_ORDER = ['personal', 'family', 'guardian', 'hostel', 'documents', 'review'];
-    const STEP_TITLES = {
-      personal: 'Personal & Academic Details',
-      family: 'Family & Contact Details',
-      guardian: 'Local Guardian Details',
-      hostel: 'Hostel Preferences',
-      documents: 'Documents',
-      review: 'Review & Submit'
-    };
-    const NEXT_LABELS = {
-      personal: 'Next: Family & Contact Details',
-      family: 'Next: Local Guardian Details',
-      guardian: 'Next: Hostel Preferences',
-      hostel: 'Next: Documents',
-      documents: 'Next: Review & Submit',
-      review: 'Submit Application'
-    };
-
-    let currentStepIndex = 0;
-    let draft = {};
-    let uploaders;
 
     function initWizard() {
       draft = getDraft() || {};
