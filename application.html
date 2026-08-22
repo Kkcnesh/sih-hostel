@@ -251,26 +251,23 @@
 
             <!-- ============ STEP: HOSTEL PREFERENCES ============ -->
             <div class="step-section" data-step="hostel">
-              <fieldset class="field" id="field-hostel">
-                <legend class="field__label">Hostel <span class="field__tag field__tag--required">Required</span></legend>
-                <div class="choice-group">
-                  <label class="choice-card">
-                    <input type="radio" name="hostel" value="Boys">
-                    <span class="choice-card__body">
-                      <span class="choice-card__label">Boys Hostel</span>
-                      <span class="choice-card__meta">Block B, Dwarka Campus</span>
-                    </span>
-                  </label>
-                  <label class="choice-card">
-                    <input type="radio" name="hostel" value="Girls">
-                    <span class="choice-card__body">
-                      <span class="choice-card__label">Girls Hostel</span>
-                      <span class="choice-card__meta">Block A, Dwarka Campus</span>
-                    </span>
-                  </label>
+              <!-- Locked, not a choice: which hostel a student may apply to
+                   is derived from Gender on their Eligibility record (see
+                   deriveHostelFromGender() below and the identical helper
+                   in api/_lib/schema.js) — same "From your admission
+                   record" locked-field pattern as DOB/Enrolment No./Course
+                   & School on Step 1. The server re-derives and enforces
+                   this independently in /api/submitApplication regardless
+                   of what this field displays — see that file's comment
+                   for why this can't be a front-end-only restriction. -->
+              <div class="field-row">
+                <div class="field">
+                  <label class="field__label" for="hostel">Hostel <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="hostel" disabled>
+                  <p class="field__help">Based on your gender on record — contact the Hostel Office if this is incorrect.</p>
                 </div>
-                <p class="field__error"></p>
-              </fieldset>
+                <div></div>
+              </div>
 
               <fieldset class="field" id="field-roomType">
                 <legend class="field__label">Room Type Preference <span class="field__tag field__tag--required">Required</span></legend>
@@ -401,10 +398,50 @@
         linkHref: pageUrl('status'),
         linkLabel: 'Go to Status'
       });
+    } else if (!deriveHostelFromGender(student.Gender)) {
+      // Hostel choice is now fully derived from Gender (see
+      // deriveHostelFromGender() below) — a student whose Eligibility
+      // record has no Gender, or an unrecognized value, can't be assigned
+      // a hostel at all. Blocking here, before the wizard even opens, is
+      // better than letting them fill out all 6 steps only to have
+      // /api/submitApplication reject it at the very end.
+      renderSiteHeader(document.getElementById('site-header'), { activeNav: 'apply' });
+      renderSiteFooter(document.getElementById('site-footer'));
+      wizardView.classList.add('hidden');
+      gateView.classList.remove('hidden');
+      renderGatePanel(gateView, {
+        title: "We can't confirm your hostel eligibility",
+        message: 'Your Gender on record doesn\'t match what we need to assign a hostel. Contact the Hostel Office to have your admission record corrected, then come back.',
+        linkHref: pageUrl('login'),
+        linkLabel: 'Back to Login'
+      });
     } else {
       renderSiteHeader(document.getElementById('site-header'), { activeNav: 'apply' });
       renderSiteFooter(document.getElementById('site-footer'));
       initWizard();
+    }
+
+    /**
+     * Maps an Eligibility Gender value to the one hostel a student may
+     * apply to. Returns null (never a default) if it doesn't map cleanly —
+     * every caller must treat null as "can't proceed," not "assume Boys."
+     *
+     * Mirrors deriveHostelFromGender() in api/_lib/schema.js EXACTLY — the
+     * server independently re-derives and enforces this in
+     * /api/submitApplication regardless of what this page ever sends, so
+     * this client-side copy only controls what the student SEES (a locked
+     * field showing the right hostel, or the gate panel above if Gender
+     * doesn't map). If you change the accepted values on one side, change
+     * them on the other — a client that accepts a value the server
+     * rejects means a student can fill out all 6 steps and then hit a
+     * submit error; a client that's stricter than the server just under-
+     * serves some otherwise-valid students.
+     */
+    function deriveHostelFromGender(gender) {
+      const normalized = String(gender || '').trim().toLowerCase();
+      if (normalized === 'male' || normalized === 'm') return 'Boys';
+      if (normalized === 'female' || normalized === 'f') return 'Girls';
+      return null;
     }
 
     function initWizard() {
@@ -560,9 +597,10 @@
       if (key === 'family') return FAMILY_REQUIRED_FIELDS.map(validateTextField).every(Boolean);
       if (key === 'guardian') return GUARDIAN_REQUIRED_FIELDS.map(validateTextField).every(Boolean);
       if (key === 'hostel') {
-        const hostelOk = validateRadioGroup('hostel');
-        const roomTypeOk = validateRadioGroup('roomType');
-        return hostelOk && roomTypeOk;
+        // Hostel itself is locked/derived, not a choice, so there's
+        // nothing of its own to validate here anymore — see
+        // deriveHostelFromGender() above. Only Room Type stays a real choice.
+        return validateRadioGroup('roomType');
       }
       if (key === 'documents') return uploaders.allRequiredDone();
       return true; // review has nothing of its own to validate
@@ -609,10 +647,10 @@
     }
 
     function prefillHostel() {
-      // Sensible default for a gender-segregated hostel system — still changeable.
-      const defaultHostel = draft.hostel ?? (student.Gender === 'Female' ? 'Girls' : 'Boys');
-      const defaultHostelInput = document.querySelector(`input[name="hostel"][value="${defaultHostel}"]`);
-      if (defaultHostelInput) defaultHostelInput.checked = true;
+      // Locked — the initWizard() gate already guaranteed
+      // deriveHostelFromGender(student.Gender) is non-null before the
+      // wizard ever opens, so this is always a real value here, never blank.
+      document.getElementById('hostel').value = deriveHostelFromGender(student.Gender);
       if (draft.roomType) {
         const el = document.querySelector(`input[name="roomType"][value="${draft.roomType}"]`);
         if (el) el.checked = true;
@@ -672,7 +710,11 @@
       }
       if (key === 'hostel') {
         return {
-          hostel: document.querySelector('input[name="hostel"]:checked')?.value ?? '',
+          // Re-derived from Gender, not read off the (disabled, display-only)
+          // #hostel input — the server ignores whatever's sent here anyway
+          // and re-derives it independently in /api/submitApplication, so
+          // this only needs to be correct for the Review step's own display.
+          hostel: deriveHostelFromGender(student.Gender) ?? '',
           roomType: document.querySelector('input[name="roomType"]:checked')?.value ?? '',
           roommateEnrolment: document.getElementById('roommateEnrolment').value
         };

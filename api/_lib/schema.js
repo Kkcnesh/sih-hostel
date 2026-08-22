@@ -149,6 +149,34 @@ function isValidEmailServer(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
 }
 
+/**
+ * Maps an Eligibility row's Gender value to the one hostel that student
+ * may apply to. Returns null (never a default) if it doesn't map cleanly —
+ * callers MUST treat null as "reject the submission," never as "assume
+ * Boys." This is the actually load-bearing check — see the identical
+ * client-side copy in application.html's deriveHostelFromGender(), which
+ * only controls what the student sees; this is what submitApplication.js
+ * actually enforces regardless of what the client sent.
+ *
+ * The exact set of Gender values in use in the live Eligibility sheet
+ * was NOT confirmed against real data as of this change (this session had
+ * no GOOGLE_REFRESH_TOKEN available to query it) — 'Male'/'Female'/'M'/'F'
+ * (case-insensitive) are accepted because they're the only values any
+ * existing code in this repo assumed (see the pre-existing, now-replaced
+ * `student.Gender === 'Female'` check this function's client-side
+ * counterpart used to be). If the real sheet uses a different convention,
+ * every affected submission will be rejected with a clear error (not
+ * silently mis-assigned) until this list is extended to match — confirm
+ * the real values and update both this function and its client-side copy
+ * together if so.
+ */
+function deriveHostelFromGender(gender) {
+  const normalized = String(gender || '').trim().toLowerCase();
+  if (normalized === 'male' || normalized === 'm') return 'Boys';
+  if (normalized === 'female' || normalized === 'f') return 'Girls';
+  return null;
+}
+
 /** Reads a dotted path ('localGuardian.office.tel') off a plain object; undefined if any segment is missing. */
 function getPath(obj, path) {
   return path.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
@@ -242,7 +270,11 @@ function buildApplicationRow(formData, elig, applicationId) {
     StudentMobile: formData.studentMobile,
     StudentEmail: formData.studentEmail,
     ExtraCurricular: formData.extraCurricular || '',
-    HostelChoice: formData.hostel,
+    // Ignores formData.hostel entirely, same as Name/Course/School above —
+    // by the time buildApplicationRow() runs, submitApplication.js has
+    // already confirmed deriveHostelFromGender(elig.Gender) is non-null
+    // (see the early-return check there), so this is always a real value.
+    HostelChoice: deriveHostelFromGender(elig.Gender),
     RoomTypePreference: formData.roomType,
     RoommatePreferenceEnrolmentNo: formData.roommateEnrolment || '',
     PhotoDriveLink: driveLink('photo'),
@@ -282,6 +314,7 @@ module.exports = {
   columnIndex,
   rowToObject,
   parseSheetDate,
+  deriveHostelFromGender,
   isValidEmailServer,
   getPath,
   validateApplicationFields,

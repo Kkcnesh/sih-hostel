@@ -9,8 +9,11 @@
  * (edit-before-verification is allowed) and keeps its original
  * ApplicationID; once VerificationStatus moves past "Pending" the row is
  * locked and resubmission is rejected. Identity fields (Name/DOB/Course/
- * School) are re-read from Eligibility here rather than trusted from the
- * client, same as before.
+ * School/HostelChoice) are re-read from Eligibility here rather than
+ * trusted from the client, same as before — HostelChoice specifically is
+ * derived from Gender (deriveHostelFromGender() in _lib/schema.js) and,
+ * unlike the others, rejects the whole submission outright if Gender
+ * doesn't map cleanly, rather than substituting anything.
  *
  * KNOWN LIMITATION — race condition, flagged rather than silently dropped:
  * Code.gs used LockService.getScriptLock() to make the whole "check
@@ -37,6 +40,7 @@ const {
   APPLICATIONS_COLUMNS,
   COUNTERS_COLUMNS,
   validateApplicationFields,
+  deriveHostelFromGender,
   buildApplicationRow
 } = require('./_lib/schema');
 
@@ -69,6 +73,18 @@ async function submitApplication(formData) {
     const errors = validateApplicationFields(formData);
     if (Object.keys(errors).length > 0) {
       return { success: false, errors };
+    }
+
+    // HostelChoice is enforced here, not just in the UI — a direct API
+    // call can send any HostelChoice it likes; buildApplicationRow()
+    // below ignores it completely and re-derives from elig.Gender instead
+    // (same pattern as Name/DOB/Course/School). This is the one case
+    // where an unmappable value must reject the whole submission rather
+    // than silently substitute something — see deriveHostelFromGender()'s
+    // doc comment in _lib/schema.js for why guessing here would be worse
+    // than failing loudly.
+    if (!deriveHostelFromGender(elig.Gender)) {
+      return { success: false, error: `Your Gender on record ("${elig.Gender || 'blank'}") doesn't map to a hostel. Contact the Hostel Office to have your Eligibility record corrected before applying.` };
     }
 
     // See the KNOWN LIMITATION note above — this check-then-write sequence
