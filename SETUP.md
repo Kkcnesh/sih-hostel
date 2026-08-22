@@ -69,9 +69,7 @@ You'll do six things, in order: create an OAuth client in Google Cloud, run a on
 4. Seed a few real rows into **Eligibility** so you have something to log in with (`EnrolmentNo`, `Name`, `DOB` as `YYYY-MM-DD`, `Course`, `School`, `Gender`).
 5. Copy the sheet's ID out of its URL — `https://docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit`.
 
-## 4. Set the three environment variables in Vercel
-
-The backend reads exactly three env vars — `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`. Nothing else (no more `GOOGLE_SERVICE_ACCOUNT_KEY`).
+## 4. Set the environment variables in Vercel
 
 In Vercel: **Project → Settings → Environment Variables**, add:
 
@@ -81,8 +79,26 @@ In Vercel: **Project → Settings → Environment Variables**, add:
 | `GOOGLE_CLIENT_SECRET` | Same value as in your local `.env` (step 2.2) |
 | `GOOGLE_REFRESH_TOKEN` | The token printed by `npm run get-refresh-token` (step 2.5) |
 | `GOOGLE_SHEET_ID` | The sheet ID from step 3.5 |
+| `ADMIN_SECRET` | Any long random string you generate yourself (e.g. `openssl rand -hex 32`) — protects `/api/runAllocation`, see below |
 
-(Yes, `GOOGLE_SHEET_ID` too — four env vars total, still nothing else.) Apply all four to every environment (Production/Preview/Development) unless you deliberately want different sheets per environment, in which case use separate refresh tokens/sheets and set the vars per-environment instead.
+Apply all five to every environment (Production/Preview/Development) unless you deliberately want different sheets per environment, in which case use separate refresh tokens/sheets and set the vars per-environment instead.
+
+### `ADMIN_SECRET` and `/api/runAllocation`
+
+`POST /api/runAllocation` assigns rooms to every "Not Processed" application. There's no admin login system yet, so it's protected the simplest way that isn't wide open: the request must include a header
+
+```
+Authorization: Bearer <ADMIN_SECRET>
+```
+
+matching the `ADMIN_SECRET` env var, or the endpoint returns 401 (and if `ADMIN_SECRET` isn't set at all, it returns 500 rather than silently allowing unauthenticated access). Only share this value with whoever is supposed to run allocations — anyone with it can trigger a real allotment run. Example call:
+
+```bash
+curl -X POST https://your-deployment.vercel.app/api/runAllocation \
+  -H "Authorization: Bearer YOUR_ADMIN_SECRET"
+```
+
+See the comment at the top of `api/runAllocation.js` for exactly which priority policy it implements (a scoped-down 3-tier version of GGSIPU's real policy — the full version needs a distance field the application form doesn't collect yet) and its idempotency behavior (safe to rerun as new applications come in; never re-shuffles already-Allotted/Waitlisted rows).
 
 ## 5. Deploy
 
