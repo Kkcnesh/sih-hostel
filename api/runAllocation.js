@@ -46,6 +46,7 @@
 const { getSheetRows, writeRowAt, logEvent } = require('./_lib/sheets');
 const { SHEET_NAMES, APPLICATIONS_COLUMNS, ROOM_INVENTORY_COLUMNS } = require('./_lib/schema');
 const { HOSTELS, ROOM_TYPES, compareCandidates, allocatePool } = require('./_lib/allocation');
+const { requireAdmin } = require('./_lib/adminAuth');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -53,19 +54,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Fail CLOSED if ADMIN_SECRET isn't set — an unconfigured secret must
-  // never be treated as "no auth required."
-  const expectedSecret = process.env.ADMIN_SECRET;
-  if (!expectedSecret) {
-    res.status(500).json({ success: false, error: 'ADMIN_SECRET is not configured on the server. See SETUP.md.' });
-    return;
-  }
-  const authHeader = String(req.headers.authorization || '');
-  const providedSecret = (authHeader.match(/^Bearer\s+(.+)$/i) || [])[1] || '';
-  if (providedSecret.trim() !== expectedSecret) {
-    res.status(401).json({ success: false, error: 'Unauthorized.' });
-    return;
-  }
+  if (!requireAdmin(req, res)) return; // requireAdmin already sent the 401/500 response
 
   try {
     const result = await runAllocation();

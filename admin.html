@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<!-- ==========================================================================
+     ADMIN DASHBOARD
+     ==========================================================================
+     Minimal, API-only-so-far admin surface: view every Applications row,
+     toggle VerificationStatus per applicant, and trigger the allocation
+     engine (POST /api/runAllocation). Not linked from anywhere in the
+     student-facing nav/footer on purpose — reached only by navigating here
+     directly (/admin.html). There's no real admin login system yet, just
+     the shared ADMIN_SECRET bearer-token check every /api/admin/* endpoint
+     (and /api/runAllocation) already enforces server-side — see
+     api/_lib/adminAuth.js and SETUP.md. This page's "gate" below is that
+     same secret, typed in once per browser tab and stored in
+     sessionStorage (key hostelAdminSecret) so every subsequent call on
+     this tab can send it as an Authorization header — mirrors how the
+     student pages keep their session in sessionStorage (js/script.js's
+     SESSION_KEY), just a different key and a different shape of "session."
+
+     Deliberately does NOT use the shared callApi() from js/script.js — that
+     helper doesn't support custom headers, and every call here needs
+     "Authorization: Bearer <secret>". See adminFetch() below instead. Table
+     styles and status-badge styles live in css/stylesheet.css section 18.
+     ========================================================================== -->
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GGSIPU Hostel Portal — Admin</title>
+  <link rel="stylesheet" href="css/stylesheet.css">
+  <style>
+    #gate-view.hidden, #dashboard-view.hidden { display: none; }
+    #gate-view { max-width: 420px; margin: var(--space-6) auto 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="site-header" id="site-header"></header>
+
+    <main>
+      <div class="container">
+        <p class="eyebrow">Admin</p>
+        <h1 style="font-size: var(--text-2xl); margin: 4px 0 var(--space-5);">Hostel Applications</h1>
+
+        <div id="gate-view" class="panel">
+          <div>
+            <p class="panel__title" style="font-size: var(--text-lg);">Enter admin secret</p>
+            <p class="panel__hint">Matches the ADMIN_SECRET environment variable set in Vercel. See SETUP.md.</p>
+          </div>
+          <div class="field">
+            <label class="field__label" for="admin-secret-input">Admin Secret</label>
+            <input class="field__control" type="password" id="admin-secret-input" autocomplete="off">
+            <p class="field__error" id="gate-error" style="display:block;"></p>
+          </div>
+          <button type="button" class="btn btn--primary" id="gate-submit-btn">Enter</button>
+        </div>
+
+        <div id="dashboard-view" class="stack hidden">
+          <div id="alert-root"></div>
+
+          <div class="admin-toolbar">
+            <button type="button" class="btn btn--navy" id="run-allocation-btn">Run Allocation</button>
+            <span class="text-muted" id="applications-count"></span>
+          </div>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Enrolment No.</th>
+                  <th>Name</th>
+                  <th>Hostel / Room Type</th>
+                  <th>Verification</th>
+                  <th>Allotment</th>
+                  <th>Room No.</th>
+                  <th>Waitlist Pos.</th>
+                </tr>
+              </thead>
+              <tbody id="applications-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <footer class="site-footer" id="site-footer"></footer>
+  </div>
+
+  <script src="js/script.js"></script>
+  <script>
+    /* ==========================================================================
+       PAGE GLUE — admin secret gate, then the dashboard
+       ========================================================================== */
+    renderSiteHeader(document.getElementById('site-header'));
+    renderSiteFooter(document.getElementById('site-footer'));
+
+    const gateView = document.getElementById('gate-view');
+    const dashboardView = document.getElementById('dashboard-view');
+    const alertRoot = document.getElementById('alert-root');
+
+    const ADMIN_SECRET_KEY = 'hostelAdminSecret';
+    const getAdminSecret = () => sessionStorage.getItem(ADMIN_SECRET_KEY) || '';
+    const setAdminSecret = (v) => sessionStorage.setItem(ADMIN_SECRET_KEY, v);
+    const clearAdminSecret = () => sessionStorage.removeItem(ADMIN_SECRET_KEY);
+
+    /** Like callApi() in js/script.js, but adds the Authorization header every /api/admin/* + /api/runAllocation call needs, and surfaces the server's real {error} message on a non-2xx response instead of a generic "Request failed (status)". */
+    function adminFetch(endpoint, payload) {
+      return fetch(`/api/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAdminSecret()}` },
+        body: JSON.stringify(payload || {})
+      }).then(async (res) => {
+        const body = await res.json().catch(() => null);
+        if (!res.ok) throw new Error((body && body.error) || `Request failed (${res.status})`);
+        return body;
+      });
+    }
+
+    let applications = []; // last-loaded list; toggle handlers mutate this in place on confirmed success only
+
+    function showGate(message) {
+      dashboardView.classList.add('hidden');
+      gateView.classList.remove('hidden');
+      document.getElementById('gate-error').textContent = message || '';
+    }
+
+    function showDashboard() {
+      gateView.classList.add('hidden');
+      dashboardView.classList.remove('hidden');
+    }
+
+    function loadApplications() {
+      return adminFetch('admin/listApplications', {}).then((result) => {
+        applications = result.applications;
+        showDashboard();
+        renderTable();
+      });
+    }
+
+    // A secret already stored on this tab (from an earlier visit this
+    // session) is tried silently -- no need to retype it on every reload.
+    if (getAdminSecret()) {
+      loadApplications().catch((err) => {
+        clearAdminSecret();
+        showGate(err.message);
+      });
+    } else {
+      showGate();
+    }
+
+    document.getElementById('gate-submit-btn').addEventListener('click', submitGate);
+    document.getElementById('admin-secret-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submitGate(); }
+    });
+
+    function submitGate() {
+      const value = document.getElementById('admin-secret-input').value.trim();
+      if (!value) { showGate('Enter the admin secret.'); return; }
+      setAdminSecret(value);
+      loadApplications().catch((err) => {
+        clearAdminSecret();
+        showGate(err.message);
+      });
+    }
+
+    /* ---- table rendering ---- */
+    function renderTable() {
+      document.getElementById('applications-count').textContent =
+        `${applications.length} application${applications.length === 1 ? '' : 's'}`;
+
+      const tbody = document.getElementById('applications-tbody');
+      if (applications.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-muted" style="text-align:center; padding: var(--space-6);">No applications yet.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = applications.map((app) => `
+        <tr data-application-id="${app.applicationId}">
+          <td>${app.enrolmentNo}</td>
+          <td>${app.name}</td>
+          <td>${app.hostel} &middot; ${app.roomType}</td>
+          <td>${verificationBadgeHtml(app)}</td>
+          <td>${allotmentBadgeHtml(app)}</td>
+          <td>${app.allottedRoomNo || '—'}</td>
+          <td>${app.waitlistPosition || '—'}</td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('[data-role="verify-toggle"]').forEach((btn) => {
+        btn.addEventListener('click', () => onToggleVerification(btn.closest('tr').dataset.applicationId));
+      });
+    }
+
+    /* Filled pill, tinted per state -- this column is interactive (a toggle button), distinct from Allotment's read-only outline pills below. */
+    function verificationBadgeHtml(app) {
+      const isVerified = app.verificationStatus === 'Verified';
+      return `<button type="button" class="status-badge status-badge--toggle ${isVerified ? 'status-badge--verified' : 'status-badge--pending'}" data-role="verify-toggle">${isVerified ? icon('check') + ' Verified' : 'Pending'}</button>`;
+    }
+
+    /* Read-only -- AllotmentStatus is set only by the allocation engine, never toggled by hand here. */
+    function allotmentBadgeHtml(app) {
+      const cls = app.allotmentStatus === 'Allotted' ? 'status-badge--allotted'
+        : app.allotmentStatus === 'Waitlisted' ? 'status-badge--waitlisted'
+        : 'status-badge--not-processed';
+      return `<span class="status-badge ${cls}">${app.allotmentStatus}</span>`;
+    }
+
+    /* ---- verification toggle ----
+       Not optimistic: the button just shows a disabled "Saving..." state
+       while the request is in flight, and applications[i].verificationStatus
+       is only mutated after a confirmed 200 response. On failure nothing
+       was ever mutated, so re-rendering naturally restores the original
+       label -- that's the "revert" the failure path needs, without a
+       separate rollback code path to keep in sync with the success path.
+       ========================================================================== */
+    function onToggleVerification(applicationId) {
+      const app = applications.find((a) => a.applicationId === applicationId);
+      if (!app) return;
+
+      const row = document.querySelector(`tr[data-application-id="${CSS.escape(applicationId)}"]`);
+      const btn = row?.querySelector('[data-role="verify-toggle"]');
+      if (!btn || btn.disabled) return; // a request for this row is already in flight -- ignore the double-click
+
+      const newStatus = app.verificationStatus === 'Verified' ? 'Pending' : 'Verified';
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      adminFetch('admin/updateVerification', { applicationId, verificationStatus: newStatus })
+        .then((result) => {
+          app.verificationStatus = result.verificationStatus;
+          renderTable();
+        })
+        .catch((err) => {
+          renderTable(); // app.verificationStatus untouched -- restores the pre-click label
+          showAlert(alertRoot, { title: 'Could not update verification status', message: err.message, tone: 'danger' });
+        });
+    }
+
+    /* ---- run allocation ---- */
+    document.getElementById('run-allocation-btn').addEventListener('click', runAllocationNow);
+
+    function runAllocationNow() {
+      const btn = document.getElementById('run-allocation-btn');
+      btn.disabled = true;
+      btn.textContent = 'Running…';
+      clearAlert(alertRoot);
+
+      adminFetch('runAllocation', {})
+        .then((result) => {
+          showAlert(alertRoot, {
+            title: 'Allocation run complete',
+            message: `${result.summary.totalAllotted} allotted, ${result.summary.totalWaitlisted} waitlisted (${result.summary.totalCandidates} candidates processed this run).`,
+            tone: 'info'
+          });
+          return loadApplications(); // refresh the table so newly-decided rows show immediately
+        })
+        .catch((err) => {
+          showAlert(alertRoot, { title: 'Allocation run failed', message: err.message, tone: 'danger' });
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.textContent = 'Run Allocation';
+        });
+    }
+  </script>
+</body>
+</html>

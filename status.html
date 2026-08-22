@@ -6,11 +6,12 @@
      Applications row (student.hasExistingApplication).
 
      GET status via POST /api/getApplicationStatus, which returns two
-     separate columns — VerificationStatus ("Pending" | "Verified", set by
-     the not-yet-built admin dashboard) and AllotmentStatus ("Not
-     Processed" | "Allotted" | "Waitlisted", set by the not-yet-built
-     allocation engine). This page derives its 3-stage corridor display
-     from both — see deriveCorridorStatus() below.
+     separate columns — VerificationStatus ("Pending" | "Verified", toggled
+     per applicant from admin.html via POST /api/admin/updateVerification)
+     and AllotmentStatus ("Not Processed" | "Allotted" | "Waitlisted", set
+     by the allocation engine — POST /api/runAllocation, triggered from
+     admin.html). This page derives its 3-stage corridor display from
+     both — see deriveCorridorStatus() below.
      ========================================================================== -->
 <html lang="en">
 <head>

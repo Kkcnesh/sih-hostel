@@ -31,6 +31,7 @@
    15. Status page result cards + document checklist
    16. Alerts
    17. Responsive (desktop-first, collapses down for narrow screens)
+   18. Admin dashboard (table, status badges)      -- admin.html only
    ========================================================================== */
 
 
@@ -602,6 +603,60 @@ legend { padding: 0; }
   .btn-row { flex-direction: column-reverse; align-items: stretch; }
   .site-header__utility-inner { justify-content: space-between; }
 }
+
+
+/* --------------------------------------------------------------------------
+   18. ADMIN DASHBOARD  (admin.html only)
+   --------------------------------------------------------------------------
+   .status-badge reuses .field__tag's exact recipe (uppercase, small text,
+   var(--radius), tinted background) rather than inventing a new pill shape
+   -- same "small status label" visual language already established for the
+   Required/Optional tags on the application form.
+
+   Verification (filled, interactive -- .status-badge--toggle) and
+   Allotment (a distinct navy/outline treatment, read-only) are
+   deliberately styled differently from each other: they're two separate
+   stages of the process and shouldn't be visually interchangeable at a
+   glance, even though both render as small badges in the same table.
+   -------------------------------------------------------------------------- */
+.admin-toolbar { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+
+.admin-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.admin-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.admin-table th, .admin-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.admin-table th { background: var(--surface-muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700; }
+.admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-table tbody tr:hover { background: var(--surface-muted); }
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+}
+
+/* Verification -- filled tints, matches .field__tag--required's color pairing */
+.status-badge--pending { color: #8A4B0E; background: var(--warning-tint); }
+.status-badge--verified { color: var(--success); background: var(--success-tint); }
+
+/* Allotment -- read-only, a different treatment on purpose (see section header note) */
+.status-badge--not-processed { color: var(--text-muted); background: var(--surface-muted); border-color: var(--border); }
+.status-badge--allotted { color: #fff; background: var(--navy); }
+.status-badge--waitlisted { color: var(--orange-dark); background: var(--surface); border-color: var(--orange-dark); }
+
+/* Verification badges double as the toggle button -- same shape, added interactivity */
+.status-badge--toggle {
+  cursor: pointer;
+  font-family: var(--font);
+}
+.status-badge--toggle:hover:not(:disabled) { filter: brightness(0.95); }
+.status-badge--toggle:disabled { cursor: not-allowed; opacity: 0.65; }
 
 
 /* --------------------------------------------------------------------------

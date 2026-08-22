@@ -36,6 +36,13 @@ const APPLICATIONS_COLUMNS = [
   'AllottedRoomNo', 'AllottedRoommateEnrolmentNo', 'WaitlistPosition'
 ];
 
+// The only two values VerificationStatus is ever set to — confirmed against
+// buildApplicationRow() below (default 'Pending') and submitApplication.js's
+// existing.VerificationStatus !== 'Pending' lock check, not guessed. Used by
+// api/admin/updateVerification.js to reject anything else with a 400 rather
+// than writing an arbitrary string into the sheet.
+const VERIFICATION_STATUSES = ['Pending', 'Verified'];
+
 const ROOM_INVENTORY_COLUMNS = ['RoomNo', 'Hostel', 'RoomType', 'Capacity', 'Occupied'];
 const COUNTERS_COLUMNS = ['CounterName', 'NextValue'];
 const LOGS_COLUMNS = ['Timestamp', 'EnrolmentNo', 'Context', 'Message'];
@@ -263,6 +270,7 @@ module.exports = {
   SHEET_NAMES,
   ELIGIBILITY_COLUMNS,
   APPLICATIONS_COLUMNS,
+  VERIFICATION_STATUSES,
   ROOM_INVENTORY_COLUMNS,
   COUNTERS_COLUMNS,
   LOGS_COLUMNS,

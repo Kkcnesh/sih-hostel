@@ -79,26 +79,32 @@ In Vercel: **Project → Settings → Environment Variables**, add:
 | `GOOGLE_CLIENT_SECRET` | Same value as in your local `.env` (step 2.2) |
 | `GOOGLE_REFRESH_TOKEN` | The token printed by `npm run get-refresh-token` (step 2.5) |
 | `GOOGLE_SHEET_ID` | The sheet ID from step 3.5 |
-| `ADMIN_SECRET` | Any long random string you generate yourself (e.g. `openssl rand -hex 32`) — protects `/api/runAllocation`, see below |
+| `ADMIN_SECRET` | Any long random string you generate yourself (e.g. `openssl rand -hex 32`) — protects `/api/runAllocation` and every `/api/admin/*` endpoint, see below |
 
 Apply all five to every environment (Production/Preview/Development) unless you deliberately want different sheets per environment, in which case use separate refresh tokens/sheets and set the vars per-environment instead.
 
-### `ADMIN_SECRET` and `/api/runAllocation`
+### `ADMIN_SECRET`, the admin API, and `admin.html`
 
-`POST /api/runAllocation` assigns rooms to every "Not Processed" application. There's no admin login system yet, so it's protected the simplest way that isn't wide open: the request must include a header
+`POST /api/runAllocation` and every `POST /api/admin/*` endpoint are admin-only. There's no admin login system yet, so they're protected the simplest way that isn't wide open: the request must include a header
 
 ```
 Authorization: Bearer <ADMIN_SECRET>
 ```
 
-matching the `ADMIN_SECRET` env var, or the endpoint returns 401 (and if `ADMIN_SECRET` isn't set at all, it returns 500 rather than silently allowing unauthenticated access). Only share this value with whoever is supposed to run allocations — anyone with it can trigger a real allotment run. Example call:
+matching the `ADMIN_SECRET` env var, or the endpoint returns 401 (and if `ADMIN_SECRET` isn't set at all, it returns 500 rather than silently allowing unauthenticated access — see `api/_lib/adminAuth.js`, the one shared check every admin endpoint calls first). Only share this value with whoever is supposed to administer the portal — anyone with it can view every applicant's data, toggle verification, and trigger a real allotment run. Example call:
 
 ```bash
 curl -X POST https://your-deployment.vercel.app/api/runAllocation \
   -H "Authorization: Bearer YOUR_ADMIN_SECRET"
 ```
 
-See the comment at the top of `api/runAllocation.js` for exactly which priority policy it implements (a scoped-down 3-tier version of GGSIPU's real policy — the full version needs a distance field the application form doesn't collect yet) and its idempotency behavior (safe to rerun as new applications come in; never re-shuffles already-Allotted/Waitlisted rows).
+**`admin.html`** is the dashboard: navigate to it directly (`https://your-deployment.vercel.app/admin.html` — it's not linked from anywhere in the student-facing nav or footer on purpose). It asks for the admin secret once per browser tab, stores it in `sessionStorage`, and uses it to call:
+
+- `POST /api/admin/listApplications` — every Applications row, for the table
+- `POST /api/admin/updateVerification` — toggles one applicant's `VerificationStatus` between `Pending`/`Verified` (independent of `AllotmentStatus` — verifying documents doesn't trigger or affect allocation)
+- `POST /api/runAllocation` — the "Run Allocation" button
+
+See the comment at the top of `api/runAllocation.js` for exactly which priority policy it implements (a scoped-down 3-tier version of GGSIPU's real policy — the full version needs a distance field the application form doesn't collect yet) and its idempotency behavior (safe to rerun as new applications come in; never re-shuffles already-Allotted/Waitlisted rows). Note that `VerificationStatus` is NOT currently read by the allocation engine — a "Not Processed" application is eligible for allocation regardless of verification state. Making verification a prerequisite for allocation would be a deliberate change to `api/_lib/allocation.js`'s candidate filtering, not something either of these features implies on its own.
 
 ## 5. Deploy
 
