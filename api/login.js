@@ -11,7 +11,7 @@
  */
 
 const { getSheetRows, logEvent } = require('./_lib/sheets');
-const { SHEET_NAMES, ELIGIBILITY_COLUMNS, APPLICATIONS_COLUMNS, normalizeDate } = require('./_lib/schema');
+const { SHEET_NAMES, ELIGIBILITY_COLUMNS, APPLICATIONS_COLUMNS, parseSheetDate } = require('./_lib/schema');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -41,7 +41,13 @@ async function loginStudent({ enrolmentNo, dob }) {
     const elig = eligibilityRows.find((row) => String(row.EnrolmentNo).trim() === enrolmentNo);
     if (!elig) return NOT_FOUND;
 
-    if (normalizeDate(elig.DOB) !== normalizeDate(dob)) return NOT_FOUND;
+    // Format-tolerant comparison — see parseSheetDate()'s doc comment in
+    // _lib/schema.js for why this can't be a raw string compare. Guard
+    // against BOTH sides failing to parse and comparing null === null as
+    // if that were a match — an unparseable date is always a non-match.
+    const eligDob = parseSheetDate(elig.DOB);
+    const inputDob = parseSheetDate(dob);
+    if (!eligDob || !inputDob || eligDob !== inputDob) return NOT_FOUND;
 
     const applicationRows = await getSheetRows(SHEET_NAMES.APPLICATIONS, APPLICATIONS_COLUMNS);
     const existingApplication = applicationRows.find((row) => String(row.EnrolmentNo).trim() === enrolmentNo);
@@ -51,7 +57,7 @@ async function loginStudent({ enrolmentNo, dob }) {
       student: {
         EnrolmentNo: enrolmentNo,
         Name: elig.Name,
-        DOB: normalizeDate(elig.DOB),
+        DOB: eligDob, // already parsed above, into a clean YYYY-MM-DD
         Course: elig.Course,
         School: elig.School,
         Gender: elig.Gender

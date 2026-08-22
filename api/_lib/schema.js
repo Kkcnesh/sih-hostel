@@ -83,18 +83,59 @@ function rowToObject(columns, rowValues) {
 }
 
 /**
- * Sheets may hand back a date as a "YYYY-MM-DD"-ish string or (depending on
- * cell formatting) something else entirely — normalize to plain YYYY-MM-DD
- * so DOB comparisons are reliable. The Sheets API (unlike Apps Script's
- * SpreadsheetApp) always returns values.get() results as strings/numbers,
- * never real Date objects, so this is simpler than the original but keeps
- * the same normalized output shape.
+ * Parses a DOB value from the Eligibility sheet into a normalized
+ * YYYY-MM-DD string, or null if it doesn't match a recognized format.
+ *
+ * Why this exists: the Sheets API always returns cell values as plain
+ * strings (never real Date objects), and the Eligibility sheet's DOB
+ * column is a plain-text cell — existing data was hand-typed as
+ * DD/MM/YYYY (e.g. "01/01/2007", sometimes without leading zeros —
+ * "1/1/2007"). The client's <input type="date"> always sends YYYY-MM-DD,
+ * so comparing the two as raw strings ("2007-01-01" vs "01/01/2007")
+ * silently fails for every real match. This is deliberately
+ * format-tolerant instead of a plain string compare — do not "simplify"
+ * it back to one without re-solving that mismatch.
+ *
+ * Returning null (rather than falling back to the raw string) is
+ * deliberate too: an unparseable value should never accidentally compare
+ * equal to another unparseable value — see the null-guard at the login.js
+ * call site.
  */
-function normalizeDate(value) {
-  if (value instanceof Date) {
-    return value.toISOString().slice(0, 10);
+function parseSheetDate(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return null;
+
+  // Already YYYY-MM-DD (in case data ever gets re-seeded in this format).
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return toIsoDate(year, month, day);
   }
-  return String(value || '').trim();
+
+  // DD/MM/YYYY — the existing hand-typed format. 1 or 2 digits for day/month;
+  // leading zeros are not required ("1/1/2007" parses the same as "01/01/2007").
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    return toIsoDate(year, month, day);
+  }
+
+  return null;
+}
+
+/** Zero-pads year/month/day into "YYYY-MM-DD", rejecting out-of-range or non-existent dates (e.g. day 31 in February) rather than letting Date silently roll them over into the next month. */
+function toIsoDate(year, month, day) {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
+    return null;
+  }
+
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 function isValidEmailServer(value) {
@@ -164,7 +205,12 @@ function buildApplicationRow(formData, elig, applicationId) {
     EnrolmentNo: elig.EnrolmentNo,
     Name: elig.Name,
     Nationality: formData.nationality,
-    DOB: normalizeDate(elig.DOB),
+    // parseSheetDate() falling back to the raw trimmed value is a defensive
+    // edge case, not the expected path — a row only gets this far because
+    // login already matched this same Eligibility DOB against the one the
+    // student typed, so it should already be parseable. Preferring to store
+    // *something* over silently writing an empty DOB is the safer failure.
+    DOB: parseSheetDate(elig.DOB) || String(elig.DOB || '').trim(),
     Course: elig.Course,
     School: elig.School,
     DateOfJoiningUniversity: formData.dateOfJoining,
@@ -227,7 +273,7 @@ module.exports = {
   DRIVE_ROOT_FOLDER_NAME,
   columnIndex,
   rowToObject,
-  normalizeDate,
+  parseSheetDate,
   isValidEmailServer,
   getPath,
   validateApplicationFields,
