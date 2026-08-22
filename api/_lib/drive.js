@@ -2,17 +2,18 @@
  * ============================================================================
  * GOOGLE DRIVE CLIENT + FOLDER/FILE HELPERS
  * ============================================================================
- * Shares the same service-account auth as sheets.js (see getAuth() there).
- * Mirrors DriveApp.getFoldersByName()/createFile() from Code.gs: files are
- * still organized as "Hostel Applications/<EnrolmentNo>/<file>", found by
- * NAME rather than by a stored folder ID, same as the Apps Script version.
+ * Shares the same OAuth2 (refresh-token) auth as sheets.js — see getAuth()
+ * there. Files upload into and folders get created in whichever Google
+ * account authorized that refresh token (see scripts/get-refresh-token.js
+ * and SETUP.md) — files are organized as
+ * "Hostel Applications/<EnrolmentNo>/<file>", found by NAME rather than a
+ * stored folder ID, same structure the project's original Apps Script
+ * backend used.
  *
  * Files are never made public: Drive API v3 files are private by default
- * (visible only to the service account, and to anyone the service account's
- * Drive/folders are separately shared with) unless a permission is
- * explicitly added via drive.permissions.create — which nothing here ever
- * does. That's the equivalent of Code.gs's explicit
- * file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE) call.
+ * (visible only to the authorizing account, and to anyone that account
+ * separately shares them with) unless a permission is explicitly added via
+ * drive.permissions.create — which nothing here ever does.
  * ============================================================================
  */
 
@@ -32,7 +33,7 @@ function getDriveClient() {
 
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 
-/** Finds a folder by exact name under `parentId` (or anywhere the service account can see, if parentId is null), or creates it. Mirrors DriveApp.getFoldersByName()'s "first match wins" behavior. */
+/** Finds a folder by exact name under `parentId` (or anywhere the authorizing account can see, if parentId is null), or creates it. "First match wins" if more than one folder shares the name. */
 async function findOrCreateFolder(name, parentId) {
   const drive = getDriveClient();
 

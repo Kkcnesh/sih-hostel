@@ -1,25 +1,42 @@
 # Setup — GGSIPU Hostel Portal on Vercel
 
-This app is now static HTML/CSS/JS (`index.html`, `application.html`, `status.html`, `css/`, `js/`) plus four Vercel Serverless Functions under `api/` that talk to Google Sheets and Google Drive using a **service account** — no Google Apps Script involved anymore.
+This app is now static HTML/CSS/JS (`index.html`, `application.html`, `status.html`, `css/`, `js/`) plus four Vercel Serverless Functions under `api/` that talk to Google Sheets and Google Drive using **OAuth 2.0 with a refresh token, acting as your own Google account** — not a service account (Cloud Console's org policy on this project blocks creating service account keys, so this is the workaround). No Google Apps Script involved anymore.
 
-You'll do five things, in order: create a Google Cloud service account, create the HostelDB sheet and share it with that service account, set two environment variables in Vercel, deploy, then seed some test data.
+You'll do six things, in order: create an OAuth client in Google Cloud, run a one-time local script to get a refresh token, create the HostelDB sheet under your own account, set three environment variables in Vercel, deploy, then seed some test data.
 
-## 1. Create a Google Cloud service account
+## 1. Create a Google Cloud OAuth client
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a new project (or pick an existing one) — name doesn't matter, e.g. "ggsipu-hostel-portal".
 2. In the left sidebar: **APIs & Services → Library**. Search for and **enable** both:
    - **Google Sheets API**
    - **Google Drive API**
-3. **APIs & Services → Credentials → Create Credentials → Service account**. Give it any name (e.g. "hostel-portal-backend"). You don't need to grant it any project-level IAM roles — access is controlled entirely by what you share with it in step 2 below.
-4. Open the service account you just created → **Keys** tab → **Add Key → Create new key → JSON**. This downloads a `.json` file — **treat this file like a password.** Don't commit it to git, don't paste its contents anywhere public.
-5. Open that downloaded JSON file and copy the `"client_email"` value (looks like `hostel-portal-backend@your-project.iam.gserviceaccount.com`) — you'll need it in the next step.
+3. **APIs & Services → OAuth consent screen** — set it up if you haven't already (External is fine for testing; add your own Google account as a test user if it asks).
+4. **APIs & Services → Credentials → Create Credentials → OAuth client ID**. Application type: **Desktop app** (not "Web application" — Desktop-app clients are allowed to use a `localhost` redirect without pre-registering it, which is what the local script in step 2 needs). Name it anything, e.g. "hostel-portal-local".
+5. After creating it, copy the **Client ID** and **Client secret** shown — you'll need both in the next step.
 
-## 2. Create HostelDB and share it with the service account
+## 2. Get a refresh token (run once, locally)
 
-1. Create a new Google Sheet, name it `HostelDB`.
-2. Click **Share**, paste in the service account's email from step 1.5 above, set its role to **Editor**, and share (uncheck "notify people" — it's not a real inbox).
-3. This app also uploads files to a Drive folder named `Hostel Applications` (created automatically the first time someone uploads a document) — the service account creates it under **its own Drive storage**, which is fine and needs no extra sharing. If you'd rather have it land somewhere you can browse, create a folder in **your own** Drive first, share *that* folder with the service account email as Editor too, then just don't worry about it further — the app finds-or-creates by name either way.
-4. Create 5 tabs in HostelDB with these exact header rows (row 1 of each tab, exact spelling/order — the backend reads columns by name):
+1. In this project folder, install dependencies if you haven't: `npm install`.
+2. Copy `.env.example` to `.env` and fill in the Client ID/secret from step 1.5:
+   ```
+   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   ```
+   (`.env` is gitignored — it never gets committed.)
+3. Run:
+   ```bash
+   npm run get-refresh-token
+   ```
+4. It prints a Google URL — open it in your browser and approve access **using the Google account that should own the HostelDB sheet and the uploaded documents** (your own account, or a dedicated one you control — whichever you want the data to actually live under).
+5. After you approve, the browser redirects back to the script automatically and it prints your refresh token in the terminal. Copy it — you'll paste it into Vercel in step 4.
+
+   If it says no refresh token came back: this Google account most likely already authorized this OAuth client once before. Revoke it at [myaccount.google.com/permissions](https://myaccount.google.com/permissions) and run the script again.
+
+## 3. Create HostelDB under your own account
+
+1. Create a new Google Sheet, name it `HostelDB`, under the same Google account you authorized in step 2.4 — no sharing step needed, since the app now acts as that account directly rather than a separate robot account you'd have to grant access to.
+2. This app also uploads files to a Drive folder named `Hostel Applications` (created automatically the first time someone uploads a document), in that same account's Drive.
+3. Create 5 tabs in HostelDB with these exact header rows (row 1 of each tab, exact spelling/order — the backend reads columns by name):
 
    **Eligibility**
    ```
@@ -49,49 +66,40 @@ You'll do five things, in order: create a Google Cloud service account, create t
 
    (Tip: paste each header row into cell A1 of its tab — Sheets will split it across columns automatically if you paste it as tab-separated text.)
 
-5. Seed a few real rows into **Eligibility** so you have something to log in with (`EnrolmentNo`, `Name`, `DOB` as `YYYY-MM-DD`, `Course`, `School`, `Gender`).
-6. Copy the sheet's ID out of its URL — `https://docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit`.
+4. Seed a few real rows into **Eligibility** so you have something to log in with (`EnrolmentNo`, `Name`, `DOB` as `YYYY-MM-DD`, `Course`, `School`, `Gender`).
+5. Copy the sheet's ID out of its URL — `https://docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit`.
 
-## 3. Set the two environment variables in Vercel
+## 4. Set the three environment variables in Vercel
 
-The backend reads exactly two env vars — `GOOGLE_SERVICE_ACCOUNT_KEY` and `GOOGLE_SHEET_ID`. Nothing else.
+The backend reads exactly three env vars — `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`. Nothing else (no more `GOOGLE_SERVICE_ACCOUNT_KEY`).
 
-**`GOOGLE_SHEET_ID`** — just paste the sheet ID from step 2.6.
-
-**`GOOGLE_SERVICE_ACCOUNT_KEY`** — the *base64-encoded* contents of the JSON key file from step 1.4 (base64, not the raw JSON — this sidesteps a common real gotcha where the key's `private_key` field contains literal `\n` sequences that some env var UIs mangle). Produce it from a terminal, in the same folder as the downloaded key file:
-
-```bash
-# macOS
-base64 -i your-key-file.json | tr -d '\n' | pbcopy
-
-# Linux
-base64 -w 0 your-key-file.json | xclip -selection clipboard
-```
-
-That copies the base64 string to your clipboard. In Vercel: **Project → Settings → Environment Variables**, add:
+In Vercel: **Project → Settings → Environment Variables**, add:
 
 | Name | Value |
 |---|---|
-| `GOOGLE_SHEET_ID` | (from step 2.6) |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | (the base64 string you just copied) |
+| `GOOGLE_CLIENT_ID` | Same value as in your local `.env` (step 2.2) |
+| `GOOGLE_CLIENT_SECRET` | Same value as in your local `.env` (step 2.2) |
+| `GOOGLE_REFRESH_TOKEN` | The token printed by `npm run get-refresh-token` (step 2.5) |
+| `GOOGLE_SHEET_ID` | The sheet ID from step 3.5 |
 
-Apply both to all environments (Production/Preview/Development) unless you want separate sheets per environment, in which case use separate service accounts/sheets and set the vars per-environment instead.
+(Yes, `GOOGLE_SHEET_ID` too — four env vars total, still nothing else.) Apply all four to every environment (Production/Preview/Development) unless you deliberately want different sheets per environment, in which case use separate refresh tokens/sheets and set the vars per-environment instead.
 
-## 4. Deploy
+## 5. Deploy
 
-If this project isn't linked to Vercel yet: `vercel` from this folder (or connect the GitHub repo in the Vercel dashboard — either way, Vercel auto-detects `api/*.js` as serverless functions and serves the root HTML/CSS/JS as static files, no `vercel.json` needed). It reads `package.json` and installs `googleapis` automatically during the build.
+If this project isn't linked to Vercel yet: `vercel` from this folder (or connect the GitHub repo in the Vercel dashboard — either way, Vercel auto-detects `api/*.js` as serverless functions and serves the root HTML/CSS/JS as static files, no `vercel.json` needed). It reads `package.json` and installs `googleapis` automatically during the build (`dotenv` is a devDependency, only used by the local `get-refresh-token` script — it's not needed or used at runtime).
 
-## 5. Test the flow end to end
+## 6. Test the flow end to end
 
 1. Log in with an enrolment number + DOB you seeded into Eligibility
 2. Fill out all 6 application steps, upload all 6 documents, submit
 3. Check the Applications tab in HostelDB — a new row should appear with a real `ApplicationID` (format `HA-2026-000123`)
-4. Check the `Hostel Applications/<EnrolmentNo>/` folder in the service account's Drive — the 6 uploaded files should be there
+4. Check the `Hostel Applications/<EnrolmentNo>/` folder in the Drive of the account you authorized in step 2.4 — the 6 uploaded files should be there
 5. Reload and check the Status page pulls the just-submitted data back correctly
 
-If something fails, check the function's logs in the Vercel dashiboard (**Project → Deployments → (latest) → Functions**) — every unexpected error is also written to the **Logs** tab in HostelDB with a timestamp/context, mirroring what the old Apps Script version did.
+If something fails, check the function's logs in the Vercel dashboard (**Project → Deployments → (latest) → Functions**) — every unexpected error is also written to the **Logs** tab in HostelDB with a timestamp/context.
 
-## What's different from the Apps Script version (know before you rely on this)
+## What's different from the original Apps Script version (know before you rely on this)
 
-- **No lock/mutex protecting the `ApplicationID` counter.** The old version used Apps Script's `LockService` to make counter increments atomic; Vercel functions have no equivalent, and Sheets' API has no compare-and-swap primitive to build one on top of. Under truly simultaneous submissions from two different students, two rows could theoretically get the same `ApplicationID`. Flagged clearly in a comment at the top of `api/submitApplication.js` — not something this pass tries to solve, since a real fix means a different datastore for the counter specifically (Vercel KV, Firestore, etc.), not a Sheets-based patch.
-- **No `setupSheets()`-equivalent bootstrap function** — the 5 tabs + headers in step 2.4 above have to be created by hand once. Nothing calls itself to check they're correct at runtime, so a typo'd header name will surface as a silent "column not found" error rather than anything obvious.
+- **No lock/mutex protecting the `ApplicationID` counter.** The Apps Script version used `LockService` to make counter increments atomic; Vercel functions have no equivalent, and the Sheets API has no compare-and-swap primitive to build one on top of. Under truly simultaneous submissions from two different students, two rows could theoretically get the same `ApplicationID`. Flagged clearly in a comment at the top of `api/submitApplication.js` — not something this pass tries to solve, since a real fix means a different datastore for the counter specifically (Vercel KV, Firestore, etc.), not a Sheets-based patch.
+- **No `setupSheets()`-equivalent bootstrap function** — the 5 tabs + headers in step 3.3 above have to be created by hand once. Nothing calls itself to check they're correct at runtime, so a typo'd header name will surface as a silent "column not found" error rather than anything obvious.
+- **The refresh token is tied to whichever Google account you authorized in step 2.4** — if that person's Google account gets suspended/deleted, or they manually revoke access at [myaccount.google.com/permissions](https://myaccount.google.com/permissions), every `/api/*` call starts failing until someone re-runs `npm run get-refresh-token` and updates `GOOGLE_REFRESH_TOKEN` in Vercel. Worth using an account you control long-term (a shared/admin account), not a personal one that might change hands.

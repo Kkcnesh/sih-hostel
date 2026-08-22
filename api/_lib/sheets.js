@@ -2,15 +2,22 @@
  * ============================================================================
  * GOOGLE SHEETS CLIENT + LOW-LEVEL ROW HELPERS
  * ============================================================================
- * Auth: a service account key read from the GOOGLE_SERVICE_ACCOUNT_KEY env
- * var (base64-encoded JSON — see SETUP.md for exactly how to produce it).
- * Never logged, never hardcoded.
+ * Auth: OAuth 2.0 with a long-lived refresh token, acting as a real Google
+ * account (not a service account — Cloud Console org policy on this project
+ * blocks creating service account keys). GOOGLE_CLIENT_ID /
+ * GOOGLE_CLIENT_SECRET identify the OAuth client; GOOGLE_REFRESH_TOKEN is
+ * produced once locally via scripts/get-refresh-token.js — see SETUP.md.
+ * All three are read from env vars, never hardcoded, never logged.
+ *
+ * The googleapis OAuth2 client refreshes its short-lived access token
+ * automatically on every request using the refresh token — no manual
+ * refresh logic needed here.
  *
  * These are intentionally low-level/generic (read a sheet's rows, write a
  * row at a position, append a row) — the same role getSheet()/
- * findRowByValue()/rowToObject() played in Code.gs. Business logic
- * (which sheet, which columns, what a "duplicate" means) stays in the
- * individual /api/*.js handlers, not here.
+ * findRowByValue()/rowToObject() played in the project's original Apps
+ * Script backend. Business logic (which sheet, which columns, what a
+ * "duplicate" means) stays in the individual /api/*.js handlers, not here.
  * ============================================================================
  */
 
@@ -20,29 +27,20 @@ const { rowToObject, SHEET_NAMES } = require('./schema');
 let cachedAuth = null;
 let cachedSheetsClient = null;
 
-/** Decodes GOOGLE_SERVICE_ACCOUNT_KEY (base64 JSON) into a GoogleAuth client, reused across invocations within the same warm serverless instance. */
+/** Builds an OAuth2 client from GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN, reused across invocations within the same warm serverless instance. */
 function getAuth() {
   if (cachedAuth) return cachedAuth;
 
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!raw) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY environment variable is not set. See SETUP.md.');
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN environment variables are not all set. See SETUP.md.');
   }
 
-  let credentials;
-  try {
-    credentials = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
-  } catch (err) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is not valid base64-encoded JSON. See SETUP.md.');
-  }
-
-  cachedAuth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive'
-    ]
-  });
+  cachedAuth = new google.auth.OAuth2(clientId, clientSecret);
+  cachedAuth.setCredentials({ refresh_token: refreshToken });
   return cachedAuth;
 }
 
