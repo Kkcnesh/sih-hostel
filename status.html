@@ -5,12 +5,12 @@
      Requires a session — for a logged-in student who already has an
      Applications row (student.hasExistingApplication).
 
-     getApplicationStatus() (Code.gs) returns two separate columns —
-     VerificationStatus ("Pending" | "Verified", set by the not-yet-built
-     admin dashboard) and AllotmentStatus ("Not Processed" | "Allotted" |
-     "Waitlisted", set by the not-yet-built allocation engine). This page
-     derives its 3-stage corridor display from both — see
-     deriveCorridorStatus() below.
+     GET status via POST /api/getApplicationStatus, which returns two
+     separate columns — VerificationStatus ("Pending" | "Verified", set by
+     the not-yet-built admin dashboard) and AllotmentStatus ("Not
+     Processed" | "Allotted" | "Waitlisted", set by the not-yet-built
+     allocation engine). This page derives its 3-stage corridor display
+     from both — see deriveCorridorStatus() below.
      ========================================================================== -->
 <html lang="en">
 <head>
@@ -18,14 +18,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GGSIPU Hostel Portal — Status</title>
-  <?!= include('Stylesheet') ?>
+  <link rel="stylesheet" href="css/stylesheet.css">
   <style>
     .corridor-status-line { text-align: center; font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-4); }
   </style>
 </head>
 <body>
-  <script>const BASE_URL = '<?= baseUrl ?>';</script>
-
   <div class="page">
     <header class="site-header" id="site-header"></header>
 
@@ -41,7 +39,7 @@
     <footer class="site-footer" id="site-footer"></footer>
   </div>
 
-  <?!= include('JavaScript') ?>
+  <script src="js/script.js"></script>
   <script>
     /* ==========================================================================
        PAGE GLUE — Status tracker
@@ -49,23 +47,29 @@
     const student = requireSession();
     const statusRoot = document.getElementById('status-root');
 
-    if (student) {
-      renderSiteHeader(document.getElementById('site-header'), { activeNav: 'status' });
-      renderSiteFooter(document.getElementById('site-footer'));
+    renderSiteHeader(document.getElementById('site-header'), { activeNav: 'status' });
+    renderSiteFooter(document.getElementById('site-footer'));
 
-      google.script.run
-        .withSuccessHandler((result) => {
+    if (!student) {
+      renderGatePanel(statusRoot, {
+        title: 'Please log in first',
+        message: 'You need to sign in to see your application status.',
+        linkHref: pageUrl('login'),
+        linkLabel: 'Go to Login'
+      });
+    } else {
+      callApi('getApplicationStatus', { enrolmentNo: student.EnrolmentNo })
+        .then((result) => {
           if (!result.success) {
             renderEmptyState();
             return;
           }
           renderStatus(result.application);
         })
-        .withFailureHandler((error) => {
+        .catch((error) => {
           renderEmptyState();
           console.error(error);
-        })
-        .getApplicationStatus(student.EnrolmentNo);
+        });
     }
 
     function renderEmptyState() {
@@ -74,7 +78,7 @@
           <div class="empty-state__icon">${icon('doc')}</div>
           <h2 style="font-size: var(--text-lg);">No application yet</h2>
           <p class="text-muted" style="margin-top: 4px;">You haven't submitted a hostel application. Fill it in to get a reference number and start tracking.</p>
-          <a href="${pageUrl('personal')}" class="btn btn--primary" style="margin-top: var(--space-4);">Start application</a>
+          <a href="${pageUrl('application')}" class="btn btn--primary" style="margin-top: var(--space-4);">Start application</a>
         </div>
       `;
     }

@@ -1,0 +1,12 @@
+{
+  "name": "ggsipu-hostel-portal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GGSIPU Hostel Allocation Portal — student-facing application, Vercel Serverless Functions + Google Sheets/Drive backend.",
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "googleapis": "^144.0.0"
+  }
+}

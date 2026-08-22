@@ -2,11 +2,11 @@
 <!-- ==========================================================================
      LOGIN SCREEN
      ==========================================================================
-     doGet(e) with no ?page= (or page=login) routes here. Entry point.
+     Entry point — served as the site's index.html.
 
-     Flow: EnrolmentNo + DOB -> loginStudent() -> on success, route to
-     Application step 1 (no application yet) or Status (one exists) —
-     see applicationEntryUrl() in JavaScript.html.
+     Flow: EnrolmentNo + DOB -> POST /api/login -> on success, show a real
+     link to Application (no application yet) or Status (one exists) — see
+     applicationEntryUrl() in js/script.js.
      ========================================================================== -->
 <html lang="en">
 <head>
@@ -14,7 +14,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GGSIPU Hostel Portal — Login</title>
-  <?!= include('Stylesheet') ?>
+  <link rel="stylesheet" href="css/stylesheet.css">
   <style>
     /* ---- page-specific: login ---- */
     .login-shell { display: flex; justify-content: center; padding-top: var(--space-6); }
@@ -22,18 +22,18 @@
     .login-panel__title { font-size: var(--text-2xl); margin-top: var(--space-2); }
     .login-panel__subtitle { color: var(--text-muted); margin-top: 4px; margin-bottom: var(--space-2); }
     .help-line { text-align: center; font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-5); }
+    #welcome-view.hidden, #login-view.hidden { display: none; }
   </style>
 </head>
 <body>
-  <script>const BASE_URL = '<?= baseUrl ?>';</script>
-
   <div class="page">
     <header class="site-header" id="site-header"></header>
 
     <main>
       <div class="login-shell">
         <div class="login-panel stack">
-          <div class="panel">
+
+          <div id="login-view" class="panel">
             <div>
               <p class="eyebrow">Student Login</p>
               <h1 class="login-panel__title">Check your hostel status</h1>
@@ -42,7 +42,11 @@
 
             <div id="alert-root"></div>
 
-            <form id="login-form" class="stack" novalidate>
+            <!-- Deliberately a <div>, not a <form> — no <form> element means
+                 there is nothing for the browser to natively submit, ever,
+                 regardless of Enter-key handling, event-listener timing, or
+                 any other edge case. See the header note in js/script.js. -->
+            <div id="login-form" class="stack">
               <div class="field" id="field-enrolment">
                 <label class="field__label" for="enrolmentNo">
                   Enrolment Number <span class="field__tag field__tag--required">Required</span>
@@ -60,10 +64,20 @@
                 <p class="field__error"></p>
               </div>
 
-              <button type="submit" class="btn btn--primary btn--block" id="login-submit">
+              <button type="button" class="btn btn--primary btn--block" id="login-submit">
                 Log In
               </button>
-            </form>
+            </div>
+          </div>
+
+          <div id="welcome-view" class="panel hidden" style="text-align:center;">
+            <div class="confirm-panel__badge" style="margin: 0 auto;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <p class="eyebrow" style="margin-top: var(--space-3);">Signed In</p>
+            <h1 class="login-panel__title" id="welcome-name" style="font-size: var(--text-xl);"></h1>
+            <p class="login-panel__subtitle" id="welcome-message"></p>
+            <a id="welcome-link" href="#" class="btn btn--primary btn--block" style="margin-top: var(--space-3);"></a>
           </div>
 
           <p class="help-line">Trouble logging in? Contact the Hostel Office with your enrolment number.</p>
@@ -74,18 +88,18 @@
     <footer class="site-footer" id="site-footer"></footer>
   </div>
 
-  <?!= include('JavaScript') ?>
+  <script src="js/script.js"></script>
   <script>
-    /* ---- page glue: wires the form to loginStudent() ---- */
+    /* ---- page glue: wires the form to POST /api/login ---- */
     renderSiteHeader(document.getElementById('site-header'));
     renderSiteFooter(document.getElementById('site-footer'));
 
-    const form = document.getElementById('login-form');
     const submitBtn = document.getElementById('login-submit');
     const alertRoot = document.getElementById('alert-root');
+    const enrolmentInput = document.getElementById('enrolmentNo');
+    const dobInput = document.getElementById('dob');
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
+    function attemptLogin() {
       clearAlert(alertRoot);
 
       const enrolmentField = document.getElementById('field-enrolment');
@@ -111,24 +125,48 @@
       submitBtn.disabled = true;
       submitBtn.textContent = 'Checking…';
 
-      google.script.run
-        .withSuccessHandler((result) => {
+      callApi('login', { enrolmentNo, dob })
+        .then((result) => {
           if (!result.success) {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Log In';
             showAlert(alertRoot, { title: 'We couldn’t log you in', message: result.error, tone: 'danger' });
             return;
           }
-          setSession({ ...result.student, hasExistingApplication: result.hasExistingApplication, applicationId: result.applicationId });
-          window.top.location.href = applicationEntryUrl(getSession());
+
+          const student = { ...result.student, hasExistingApplication: result.hasExistingApplication, applicationId: result.applicationId };
+          setSession(student);
+
+          const link = document.getElementById('welcome-link');
+          if (student.hasExistingApplication) {
+            link.href = pageUrl('status');
+            link.textContent = 'Go to your application status';
+            document.getElementById('welcome-message').textContent = 'You already have an application on file.';
+          } else {
+            link.href = pageUrl('application');
+            link.textContent = 'Start your hostel application';
+            document.getElementById('welcome-message').textContent = 'Sign-in successful — you can apply for a hostel seat now.';
+          }
+          document.getElementById('welcome-name').textContent = `Welcome, ${student.Name}`;
+          document.getElementById('login-view').classList.add('hidden');
+          document.getElementById('welcome-view').classList.remove('hidden');
         })
-        .withFailureHandler((error) => {
+        .catch((error) => {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Log In';
           showAlert(alertRoot, { title: 'Something went wrong', message: 'Please try again in a moment.', tone: 'danger' });
           console.error(error);
-        })
-        .loginStudent(enrolmentNo, dob);
+        });
+    }
+
+    submitBtn.addEventListener('click', attemptLogin);
+    [enrolmentInput, dobInput].forEach((input) => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault(); // date inputs otherwise open their picker on Enter
+          attemptLogin();
+        }
+      });
     });
   </script>
 </body>

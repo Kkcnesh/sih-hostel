@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<!-- ==========================================================================
+     APPLICATION — ALL 6 STEPS, ONE PAGE
+     ==========================================================================
+     Fields are based on the GGSIPU Hostel Application Form (Annexure-I).
+     One page with 6 hidden/shown sections, switched entirely with DOM
+     manipulation — see the step controller script at the bottom.
+
+     Answers are kept in an in-memory `draft` object (mirrored to
+     sessionStorage via saveDraftFields(), including which step the student
+     was on, so a mid-application refresh resumes in place) and only turn
+     into a real Applications row when Review & Submit succeeds (POST
+     /api/submitApplication).
+     ========================================================================== -->
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GGSIPU Hostel Portal — Application</title>
+  <link rel="stylesheet" href="css/stylesheet.css">
+  <style>
+    .step-section { display: none; }
+    .step-section.active { display: block; }
+    #confirm-view.hidden, #gate-view.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="site-header" id="site-header"></header>
+
+    <main>
+      <div class="container container--narrow">
+
+        <div id="gate-view" class="hidden"><!-- populated if not logged in / already has an application --></div>
+
+        <div id="wizard-view">
+          <p class="eyebrow" id="step-eyebrow">Hostel Application &middot; Step 1 of 6</p>
+          <h1 id="step-title" style="font-size: var(--text-2xl); margin: 4px 0 var(--space-5);">Personal &amp; Academic Details</h1>
+
+          <div id="step-nav" class="step-nav"></div>
+          <div id="alert-root"></div>
+
+          <!-- Deliberately a <div>, not a <form> — see the same note in
+               index.html: no <form> element means there's nothing to
+               natively submit, ever. -->
+          <div id="wizard-form" class="panel">
+
+            <!-- ============ STEP: PERSONAL & ACADEMIC DETAILS ============ -->
+            <div class="step-section active" data-step="personal">
+              <div class="field-row">
+                <div class="field" id="field-fullName">
+                  <label class="field__label" for="fullName">Full Name <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="fullName">
+                  <p class="field__error"></p>
+                </div>
+                <div class="field" id="field-nationality">
+                  <label class="field__label" for="nationality">Nationality <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="nationality" value="Indian">
+                  <p class="field__error"></p>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label class="field__label" for="dob">Date of Birth <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="date" id="dob" disabled>
+                  <p class="field__help">From your admission record</p>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="enrolmentNo">Enrolment No. <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="enrolmentNo" disabled>
+                  <p class="field__help">From your admission record</p>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label class="field__label" for="courseSchool">Course &amp; School of Study <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="courseSchool" disabled>
+                  <p class="field__help">Incorrect? Contact the Hostel Office.</p>
+                </div>
+                <div class="field" id="field-dateOfJoining">
+                  <label class="field__label" for="dateOfJoining">Date of Joining University <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="date" id="dateOfJoining">
+                  <p class="field__error"></p>
+                </div>
+              </div>
+
+              <fieldset class="field" id="field-category">
+                <legend class="field__label">Category <span class="field__tag field__tag--required">Required</span></legend>
+                <div class="radio-group">
+                  <label class="radio-option"><input type="radio" name="category" value="Delhi"> Delhi</label>
+                  <label class="radio-option"><input type="radio" name="category" value="Outside Delhi"> Outside Delhi</label>
+                  <label class="radio-option"><input type="radio" name="category" value="Transferred"> Transferred</label>
+                </div>
+                <p class="field__error"></p>
+              </fieldset>
+
+              <div class="field-row">
+                <div class="field" id="field-reservationCategory">
+                  <label class="field__label" for="reservationCategory">Reservation Category <span class="field__tag field__tag--required">Required</span></label>
+                  <select class="field__control" id="reservationCategory">
+                    <option value="" selected>Select category</option>
+                    <option value="GEN">General (GEN)</option>
+                    <option value="SC">SC</option>
+                    <option value="ST">ST</option>
+                    <option value="PH">PH</option>
+                  </select>
+                  <p class="field__error"></p>
+                </div>
+                <div></div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="extraCurricular">Extra-Curricular Activities <span class="field__tag field__tag--optional">Optional</span></label>
+                <textarea class="field__control" id="extraCurricular" rows="2" placeholder="Sports, societies, clubs, competitions…"></textarea>
+              </div>
+            </div>
+
+            <!-- ============ STEP: FAMILY & CONTACT DETAILS ============ -->
+            <div class="step-section" data-step="family">
+              <div class="field-row">
+                <div class="field" id="field-fatherName">
+                  <label class="field__label" for="fatherName">Father's Name <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="fatherName">
+                  <p class="field__error"></p>
+                </div>
+                <div class="field" id="field-motherName">
+                  <label class="field__label" for="motherName">Mother's Name <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="text" id="motherName">
+                  <p class="field__error"></p>
+                </div>
+              </div>
+
+              <div class="subgroup">
+                <p class="subgroup__title">Present Address — Residence</p>
+                <div class="field" id="field-resAddress">
+                  <label class="field__label" for="resAddress">Address <span class="field__tag field__tag--required">Required</span></label>
+                  <textarea class="field__control" id="resAddress" rows="2"></textarea>
+                  <p class="field__error"></p>
+                </div>
+                <div class="field-row">
+                  <div class="field" id="field-resTel">
+                    <label class="field__label" for="resTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="tel" id="resTel">
+                    <p class="field__error"></p>
+                  </div>
+                  <div class="field" id="field-resEmail">
+                    <label class="field__label" for="resEmail">Email <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="email" id="resEmail">
+                    <p class="field__error"></p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="subgroup">
+                <p class="subgroup__title">Present Address — Office</p>
+                <div class="field">
+                  <label class="field__label" for="officeAddress">Address <span class="field__tag field__tag--optional">Optional</span></label>
+                  <textarea class="field__control" id="officeAddress" rows="2"></textarea>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label class="field__label" for="officeTel">Tel. No. <span class="field__tag field__tag--optional">Optional</span></label>
+                    <input class="field__control" type="tel" id="officeTel">
+                  </div>
+                  <div class="field">
+                    <label class="field__label" for="officeEmail">Email <span class="field__tag field__tag--optional">Optional</span></label>
+                    <input class="field__control" type="email" id="officeEmail">
+                  </div>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field" id="field-studentMobile">
+                  <label class="field__label" for="studentMobile">Your Mobile Number <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="tel" id="studentMobile" inputmode="numeric" placeholder="10-digit number">
+                  <p class="field__error"></p>
+                </div>
+                <div class="field" id="field-studentEmail">
+                  <label class="field__label" for="studentEmail">Your Email <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="email" id="studentEmail">
+                  <p class="field__error"></p>
+                </div>
+              </div>
+
+              <div class="field" id="field-emergencyAddress">
+                <label class="field__label" for="emergencyAddress">Emergency Contact Address <span class="field__tag field__tag--required">Required</span></label>
+                <textarea class="field__control" id="emergencyAddress" rows="2"></textarea>
+                <p class="field__help">Who should the hostel reach first in an emergency, and where.</p>
+                <p class="field__error"></p>
+              </div>
+
+              <div class="field-row">
+                <div class="field" id="field-emergencyTel">
+                  <label class="field__label" for="emergencyTel">Emergency Contact Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                  <input class="field__control" type="tel" id="emergencyTel">
+                  <p class="field__error"></p>
+                </div>
+                <div></div>
+              </div>
+            </div>
+
+            <!-- ============ STEP: LOCAL GUARDIAN DETAILS ============ -->
+            <div class="step-section" data-step="guardian">
+              <p class="panel__hint" style="margin-top: -8px;">Required — your local guardian is who the hostel contacts first if your family is far from campus.</p>
+
+              <div class="subgroup">
+                <p class="subgroup__title">Guardian — Residence</p>
+                <div class="field" id="field-guardianResAddress">
+                  <label class="field__label" for="guardianResAddress">Address <span class="field__tag field__tag--required">Required</span></label>
+                  <textarea class="field__control" id="guardianResAddress" rows="2"></textarea>
+                  <p class="field__error"></p>
+                </div>
+                <div class="field-row">
+                  <div class="field" id="field-guardianResTel">
+                    <label class="field__label" for="guardianResTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="tel" id="guardianResTel">
+                    <p class="field__error"></p>
+                  </div>
+                  <div class="field" id="field-guardianResEmail">
+                    <label class="field__label" for="guardianResEmail">Email <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="email" id="guardianResEmail">
+                    <p class="field__error"></p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="subgroup">
+                <p class="subgroup__title">Guardian — Office</p>
+                <div class="field" id="field-guardianOfficeAddress">
+                  <label class="field__label" for="guardianOfficeAddress">Address <span class="field__tag field__tag--required">Required</span></label>
+                  <textarea class="field__control" id="guardianOfficeAddress" rows="2"></textarea>
+                  <p class="field__error"></p>
+                </div>
+                <div class="field-row">
+                  <div class="field" id="field-guardianOfficeTel">
+                    <label class="field__label" for="guardianOfficeTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="tel" id="guardianOfficeTel">
+                    <p class="field__error"></p>
+                  </div>
+                  <div class="field" id="field-guardianOfficeEmail">
+                    <label class="field__label" for="guardianOfficeEmail">Email <span class="field__tag field__tag--required">Required</span></label>
+                    <input class="field__control" type="email" id="guardianOfficeEmail">
+                    <p class="field__error"></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ============ STEP: HOSTEL PREFERENCES ============ -->
+            <div class="step-section" data-step="hostel">
+              <fieldset class="field" id="field-hostel">
+                <legend class="field__label">Hostel <span class="field__tag field__tag--required">Required</span></legend>
+                <div class="choice-group">
+                  <label class="choice-card">
+                    <input type="radio" name="hostel" value="Boys">
+                    <span class="choice-card__body">
+                      <span class="choice-card__label">Boys Hostel</span>
+                      <span class="choice-card__meta">Block B, Dwarka Campus</span>
+                    </span>
+                  </label>
+                  <label class="choice-card">
+                    <input type="radio" name="hostel" value="Girls">
+                    <span class="choice-card__body">
+                      <span class="choice-card__label">Girls Hostel</span>
+                      <span class="choice-card__meta">Block A, Dwarka Campus</span>
+                    </span>
+                  </label>
+                </div>
+                <p class="field__error"></p>
+              </fieldset>
+
+              <fieldset class="field" id="field-roomType">
+                <legend class="field__label">Room Type Preference <span class="field__tag field__tag--required">Required</span></legend>
+                <div class="choice-group">
+                  <label class="choice-card">
+                    <input type="radio" name="roomType" value="Triple-sharing">
+                    <span class="choice-card__body">
+                      <span class="choice-card__label">Triple-sharing</span>
+                      <span class="choice-card__meta">3 students / room</span>
+                    </span>
+                  </label>
+                  <label class="choice-card">
+                    <input type="radio" name="roomType" value="4-sharing">
+                    <span class="choice-card__body">
+                      <span class="choice-card__label">4-sharing</span>
+                      <span class="choice-card__meta">4 students / room</span>
+                    </span>
+                  </label>
+                </div>
+                <p class="field__error"></p>
+              </fieldset>
+
+              <div class="field">
+                <label class="field__label" for="roommateEnrolment">Roommate Preference <span class="field__tag field__tag--optional">Optional</span></label>
+                <input class="field__control" type="text" id="roommateEnrolment" inputmode="numeric" placeholder="Friend's enrolment number">
+                <p class="field__help">If your friend also lists you, we'll try to seat you together. This isn't guaranteed — it depends on room availability.</p>
+              </div>
+            </div>
+
+            <!-- ============ STEP: DOCUMENTS ============ -->
+            <div class="step-section" data-step="documents">
+              <p class="panel__hint" style="margin-top: -8px;">Accepted formats: JPG, PNG or PDF, up to 5 MB each.</p>
+              <div class="stack" id="documents-container"><!-- populated by renderUploaders() --></div>
+            </div>
+
+            <!-- ============ STEP: REVIEW & SUBMIT ============ -->
+            <div class="step-section" data-step="review">
+              <div class="stack" id="review-container"><!-- populated by renderReview() --></div>
+            </div>
+
+            <div class="btn-row">
+              <button type="button" class="btn btn--secondary" id="back-btn">Back</button>
+              <button type="button" class="btn btn--primary" id="next-btn">Next: Family &amp; Contact Details</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="confirm-view" class="hidden">
+          <div class="panel confirm-panel">
+            <div class="confirm-panel__badge">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 14.5L11.5 20L22 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <p class="eyebrow">Application Submitted</p>
+            <h1 style="font-size: var(--text-2xl);">You're on the list</h1>
+            <p class="text-muted">Keep this reference number — you'll need it if you contact the Hostel Office.</p>
+            <div class="confirm-panel__ref" id="confirm-ref"></div>
+            <a id="confirm-status-link" href="#" class="btn btn--primary" style="margin-top: var(--space-3);">Track your application</a>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <footer class="site-footer" id="site-footer"></footer>
+  </div>
+
+  <script src="js/script.js"></script>
+  <script>
+    /* ==========================================================================
+       PAGE GLUE — gate check, then the step controller
+       ========================================================================== */
+    const student = requireSession();
+    const gateView = document.getElementById('gate-view');
+    const wizardView = document.getElementById('wizard-view');
+
+    if (!student) {
+      renderSiteHeader(document.getElementById('site-header'));
+      renderSiteFooter(document.getElementById('site-footer'));
+      wizardView.classList.add('hidden');
+      gateView.classList.remove('hidden');
+      renderGatePanel(gateView, {
+        title: 'Please log in first',
+        message: 'You need to sign in before starting a hostel application.',
+        linkHref: pageUrl('login'),
+        linkLabel: 'Go to Login'
+      });
+    } else if (student.hasExistingApplication) {
+      renderSiteHeader(document.getElementById('site-header'), { activeNav: 'apply' });
+      renderSiteFooter(document.getElementById('site-footer'));
+      wizardView.classList.add('hidden');
+      gateView.classList.remove('hidden');
+      renderGatePanel(gateView, {
+        title: 'You already have an application',
+        message: 'Only one hostel application is allowed per student — track its status instead.',
+        linkHref: pageUrl('status'),
+        linkLabel: 'Go to Status'
+      });
+    } else {
+      renderSiteHeader(document.getElementById('site-header'), { activeNav: 'apply' });
+      renderSiteFooter(document.getElementById('site-footer'));
+      initWizard();
+    }
+
+    /* ---- step metadata ---- */
+    const STEP_ORDER = ['personal', 'family', 'guardian', 'hostel', 'documents', 'review'];
+    const STEP_TITLES = {
+      personal: 'Personal & Academic Details',
+      family: 'Family & Contact Details',
+      guardian: 'Local Guardian Details',
+      hostel: 'Hostel Preferences',
+      documents: 'Documents',
+      review: 'Review & Submit'
+    };
+    const NEXT_LABELS = {
+      personal: 'Next: Family & Contact Details',
+      family: 'Next: Local Guardian Details',
+      guardian: 'Next: Hostel Preferences',
+      hostel: 'Next: Documents',
+      documents: 'Next: Review & Submit',
+      review: 'Submit Application'
+    };
+
+    let currentStepIndex = 0;
+    let draft = {};
+    let uploaders;
+
+    function initWizard() {
+      draft = getDraft() || {};
+      currentStepIndex = draft.currentStep ? STEP_ORDER.indexOf(draft.currentStep) : 0;
+      if (currentStepIndex === -1) currentStepIndex = 0;
+
+      prefillPersonal();
+      prefillFamily();
+      prefillGuardian();
+      prefillHostel();
+      uploaders = renderUploaders(
+        document.getElementById('documents-container'),
+        updateDocumentsNextState,
+        draft.documents || {},
+        student.EnrolmentNo
+      );
+
+      document.getElementById('back-btn').addEventListener('click', goBack);
+      document.getElementById('next-btn').addEventListener('click', advanceStep);
+
+      // Enter key in a text-like field advances the step, same as clicking
+      // Next — delegated so it covers fields across all 6 sections without
+      // six separate listeners. Skipped for textareas (Enter should insert
+      // a newline there) and radio/checkbox inputs (space/click already
+      // handle those).
+      document.getElementById('wizard-form').addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const tag = e.target.tagName;
+        const type = (e.target.type || '').toLowerCase();
+        if (tag === 'TEXTAREA' || type === 'radio' || type === 'checkbox') return;
+        e.preventDefault();
+        advanceStep();
+      });
+
+      showStep(currentStepIndex);
+    }
+
+    function showStep(index) {
+      currentStepIndex = index;
+      const key = STEP_ORDER[index];
+
+      document.querySelectorAll('.step-section').forEach((el) => {
+        el.classList.toggle('active', el.dataset.step === key);
+      });
+
+      document.getElementById('step-eyebrow').textContent = `Hostel Application · Step ${index + 1} of 6`;
+      document.getElementById('step-title').textContent = STEP_TITLES[key];
+      renderStepNav(document.getElementById('step-nav'), key);
+
+      document.getElementById('back-btn').style.visibility = index === 0 ? 'hidden' : 'visible';
+      document.getElementById('next-btn').textContent = NEXT_LABELS[key];
+      if (key === 'documents') updateDocumentsNextState();
+      else document.getElementById('next-btn').disabled = false;
+
+      if (key === 'review') renderReview();
+
+      clearAlert(document.getElementById('alert-root'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateDocumentsNextState() {
+      if (STEP_ORDER[currentStepIndex] === 'documents') {
+        document.getElementById('next-btn').disabled = !uploaders.allRequiredDone();
+      }
+    }
+
+    function goBack() {
+      if (currentStepIndex === 0) return;
+      const key = STEP_ORDER[currentStepIndex];
+      draft = saveDraftFields({ ...collectStep(key), currentStep: STEP_ORDER[currentStepIndex - 1] });
+      showStep(currentStepIndex - 1);
+    }
+
+    function advanceStep() {
+      const key = STEP_ORDER[currentStepIndex];
+
+      if (!validateStep(key)) {
+        showAlert(document.getElementById('alert-root'), {
+          title: 'A few things need fixing',
+          message: key === 'documents'
+            ? 'Every required document needs to show a green check before you continue.'
+            : 'Check the highlighted fields below.',
+          tone: 'danger'
+        });
+        document.querySelector('.field--invalid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      if (key === 'review') {
+        submitApplicationNow();
+        return;
+      }
+
+      draft = saveDraftFields({ ...collectStep(key), currentStep: STEP_ORDER[currentStepIndex + 1] });
+      showStep(currentStepIndex + 1);
+    }
+
+    /* ---- validation ---- */
+    function validateTextField(cfg) {
+      const fieldEl = document.getElementById(`field-${cfg.id}`);
+      const value = document.getElementById(cfg.id).value;
+      if (!isFilled(value)) {
+        setFieldError(fieldEl, 'This field is required.');
+        return false;
+      }
+      if (cfg.validator && !cfg.validator(value)) {
+        setFieldError(fieldEl, cfg.invalidMsg);
+        return false;
+      }
+      setFieldError(fieldEl, '');
+      return true;
+    }
+
+    function validateRadioGroup(name) {
+      const fieldEl = document.getElementById(`field-${name}`);
+      const checked = document.querySelector(`input[name="${name}"]:checked`);
+      setFieldError(fieldEl, checked ? '' : 'Please select one option.');
+      return !!checked;
+    }
+
+    function validateSelect(id) {
+      const fieldEl = document.getElementById(`field-${id}`);
+      const value = document.getElementById(id).value;
+      setFieldError(fieldEl, value ? '' : 'Please select an option.');
+      return !!value;
+    }
+
+    const PERSONAL_REQUIRED_FIELDS = [{ id: 'fullName' }, { id: 'nationality' }, { id: 'dateOfJoining' }];
+    const FAMILY_REQUIRED_FIELDS = [
+      { id: 'fatherName' }, { id: 'motherName' }, { id: 'resAddress' }, { id: 'resTel' },
+      { id: 'resEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
+      { id: 'studentMobile', validator: isValidMobile, invalidMsg: 'Enter a valid 10-digit mobile number.' },
+      { id: 'studentEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
+      { id: 'emergencyAddress' }, { id: 'emergencyTel' }
+    ];
+    const GUARDIAN_REQUIRED_FIELDS = [
+      { id: 'guardianResAddress' }, { id: 'guardianResTel' },
+      { id: 'guardianResEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
+      { id: 'guardianOfficeAddress' }, { id: 'guardianOfficeTel' },
+      { id: 'guardianOfficeEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' }
+    ];
+
+    function validateStep(key) {
+      if (key === 'personal') {
+        // Run every check (don't short-circuit with &&) so all invalid
+        // fields get their inline error shown at once, not just the first.
+        const textOk = PERSONAL_REQUIRED_FIELDS.map(validateTextField).every(Boolean);
+        const categoryOk = validateRadioGroup('category');
+        const reservationOk = validateSelect('reservationCategory');
+        return textOk && categoryOk && reservationOk;
+      }
+      if (key === 'family') return FAMILY_REQUIRED_FIELDS.map(validateTextField).every(Boolean);
+      if (key === 'guardian') return GUARDIAN_REQUIRED_FIELDS.map(validateTextField).every(Boolean);
+      if (key === 'hostel') {
+        const hostelOk = validateRadioGroup('hostel');
+        const roomTypeOk = validateRadioGroup('roomType');
+        return hostelOk && roomTypeOk;
+      }
+      if (key === 'documents') return uploaders.allRequiredDone();
+      return true; // review has nothing of its own to validate
+    }
+
+    /* ---- prefill (runs once, on load) ---- */
+    function prefillPersonal() {
+      document.getElementById('dob').value = student.DOB;
+      document.getElementById('enrolmentNo').value = student.EnrolmentNo;
+      document.getElementById('courseSchool').value = `${student.Course} — ${student.School}`;
+      document.getElementById('fullName').value = draft.name ?? student.Name;
+      document.getElementById('nationality').value = draft.nationality ?? 'Indian';
+      document.getElementById('dateOfJoining').value = draft.dateOfJoining ?? '';
+      document.getElementById('extraCurricular').value = draft.extraCurricular ?? '';
+      if (draft.category) {
+        const el = document.querySelector(`input[name="category"][value="${draft.category}"]`);
+        if (el) el.checked = true;
+      }
+      if (draft.reservationCategory) document.getElementById('reservationCategory').value = draft.reservationCategory;
+    }
+
+    function prefillFamily() {
+      document.getElementById('fatherName').value = draft.fatherName ?? '';
+      document.getElementById('motherName').value = draft.motherName ?? '';
+      document.getElementById('resAddress').value = draft.residenceAddress?.address ?? '';
+      document.getElementById('resTel').value = draft.residenceAddress?.tel ?? '';
+      document.getElementById('resEmail').value = draft.residenceAddress?.email ?? '';
+      document.getElementById('officeAddress').value = draft.officeAddress?.address ?? '';
+      document.getElementById('officeTel').value = draft.officeAddress?.tel ?? '';
+      document.getElementById('officeEmail').value = draft.officeAddress?.email ?? '';
+      document.getElementById('studentMobile').value = draft.studentMobile ?? '';
+      document.getElementById('studentEmail').value = draft.studentEmail ?? '';
+      document.getElementById('emergencyAddress').value = draft.emergencyAddress ?? '';
+      document.getElementById('emergencyTel').value = draft.emergencyTel ?? '';
+    }
+
+    function prefillGuardian() {
+      document.getElementById('guardianResAddress').value = draft.localGuardian?.residence?.address ?? '';
+      document.getElementById('guardianResTel').value = draft.localGuardian?.residence?.tel ?? '';
+      document.getElementById('guardianResEmail').value = draft.localGuardian?.residence?.email ?? '';
+      document.getElementById('guardianOfficeAddress').value = draft.localGuardian?.office?.address ?? '';
+      document.getElementById('guardianOfficeTel').value = draft.localGuardian?.office?.tel ?? '';
+      document.getElementById('guardianOfficeEmail').value = draft.localGuardian?.office?.email ?? '';
+    }
+
+    function prefillHostel() {
+      // Sensible default for a gender-segregated hostel system — still changeable.
+      const defaultHostel = draft.hostel ?? (student.Gender === 'Female' ? 'Girls' : 'Boys');
+      const defaultHostelInput = document.querySelector(`input[name="hostel"][value="${defaultHostel}"]`);
+      if (defaultHostelInput) defaultHostelInput.checked = true;
+      if (draft.roomType) {
+        const el = document.querySelector(`input[name="roomType"][value="${draft.roomType}"]`);
+        if (el) el.checked = true;
+      }
+      document.getElementById('roommateEnrolment').value = draft.roommateEnrolment ?? '';
+    }
+
+    /* ---- collect current DOM values for a step, to merge into the draft ---- */
+    function collectStep(key) {
+      if (key === 'personal') {
+        return {
+          name: document.getElementById('fullName').value,
+          nationality: document.getElementById('nationality').value,
+          dob: student.DOB,
+          courseSchool: document.getElementById('courseSchool').value,
+          dateOfJoining: document.getElementById('dateOfJoining').value,
+          category: document.querySelector('input[name="category"]:checked')?.value ?? '',
+          reservationCategory: document.getElementById('reservationCategory').value,
+          extraCurricular: document.getElementById('extraCurricular').value
+        };
+      }
+      if (key === 'family') {
+        return {
+          fatherName: document.getElementById('fatherName').value,
+          motherName: document.getElementById('motherName').value,
+          residenceAddress: {
+            address: document.getElementById('resAddress').value,
+            tel: document.getElementById('resTel').value,
+            email: document.getElementById('resEmail').value
+          },
+          officeAddress: {
+            address: document.getElementById('officeAddress').value,
+            tel: document.getElementById('officeTel').value,
+            email: document.getElementById('officeEmail').value
+          },
+          studentMobile: document.getElementById('studentMobile').value,
+          studentEmail: document.getElementById('studentEmail').value,
+          emergencyAddress: document.getElementById('emergencyAddress').value,
+          emergencyTel: document.getElementById('emergencyTel').value
+        };
+      }
+      if (key === 'guardian') {
+        return {
+          localGuardian: {
+            residence: {
+              address: document.getElementById('guardianResAddress').value,
+              tel: document.getElementById('guardianResTel').value,
+              email: document.getElementById('guardianResEmail').value
+            },
+            office: {
+              address: document.getElementById('guardianOfficeAddress').value,
+              tel: document.getElementById('guardianOfficeTel').value,
+              email: document.getElementById('guardianOfficeEmail').value
+            }
+          }
+        };
+      }
+      if (key === 'hostel') {
+        return {
+          hostel: document.querySelector('input[name="hostel"]:checked')?.value ?? '',
+          roomType: document.querySelector('input[name="roomType"]:checked')?.value ?? '',
+          roommateEnrolment: document.getElementById('roommateEnrolment').value
+        };
+      }
+      if (key === 'documents') {
+        return { documents: uploaders.getState() };
+      }
+      return {};
+    }
+
+    /* ---- review ---- */
+    function field(label, value, full = false) {
+      return `
+        <div class="review-item${full ? ' review-item--full' : ''}">
+          <div class="review-item__label">${label}</div>
+          <div class="review-item__value">${value && String(value).trim() ? value : '—'}</div>
+        </div>`;
+    }
+
+    function block(title, stepKey, bodyHtml) {
+      return `
+        <div class="review-block">
+          <div class="review-block__header">
+            <span class="review-block__title">${title}</span>
+            <button type="button" class="btn btn--ghost btn--sm" data-jump="${stepKey}">Edit</button>
+          </div>
+          <div class="review-block__body">${bodyHtml}</div>
+        </div>`;
+    }
+
+    function renderReview() {
+      // Read live DOM values (via collectStep), not the last-saved draft —
+      // this stays correct even if the student jumped here without a Next
+      // click going through every step in between (e.g. via an Edit jump).
+      const d = { ...draft, ...collectStep('personal'), ...collectStep('family'), ...collectStep('guardian'), ...collectStep('hostel') };
+      const container = document.getElementById('review-container');
+
+      const personal = block('Personal & Academic Details', 'personal', [
+        field('Full Name', d.name),
+        field('Nationality', d.nationality),
+        field('Date of Birth', formatDateDisplay(d.dob)),
+        field('Enrolment No.', student.EnrolmentNo),
+        field('Course & School', d.courseSchool, true),
+        field('Date of Joining University', d.dateOfJoining ? formatDateDisplay(d.dateOfJoining) : ''),
+        field('Category', d.category),
+        field('Reservation Category', d.reservationCategory),
+        field('Extra-Curricular Activities', d.extraCurricular, true)
+      ].join(''));
+
+      const family = block('Family & Contact Details', 'family', [
+        field("Father's Name", d.fatherName),
+        field("Mother's Name", d.motherName),
+        field('Residence Address', d.residenceAddress?.address, true),
+        field('Residence Tel.', d.residenceAddress?.tel),
+        field('Residence Email', d.residenceAddress?.email),
+        field('Office Address', d.officeAddress?.address, true),
+        field('Your Mobile', d.studentMobile),
+        field('Your Email', d.studentEmail),
+        field('Emergency Contact Address', d.emergencyAddress, true),
+        field('Emergency Contact Tel.', d.emergencyTel)
+      ].join(''));
+
+      const guardian = block('Local Guardian Details', 'guardian', [
+        field('Residence Address', d.localGuardian?.residence?.address, true),
+        field('Residence Tel.', d.localGuardian?.residence?.tel),
+        field('Residence Email', d.localGuardian?.residence?.email),
+        field('Office Address', d.localGuardian?.office?.address, true),
+        field('Office Tel.', d.localGuardian?.office?.tel),
+        field('Office Email', d.localGuardian?.office?.email)
+      ].join(''));
+
+      const hostel = block('Hostel Preferences', 'hostel', [
+        field('Hostel', d.hostel),
+        field('Room Type', d.roomType),
+        field('Roommate Preference', d.roommateEnrolment)
+      ].join(''));
+
+      const docState = uploaders.getState();
+      const docList = DOCUMENT_CONFIG.map((cfg) => {
+        const entry = docState[cfg.key];
+        const summary = entry?.done
+          ? (entry.files.length > 1 ? `${entry.files.length} files` : entry.files[0]?.name)
+          : 'Not submitted';
+        return field(cfg.label, summary);
+      }).join('');
+      const documents = block('Documents', 'documents', docList);
+
+      container.innerHTML = personal + family + guardian + hostel + documents;
+
+      container.querySelectorAll('[data-jump]').forEach((btn) => {
+        btn.addEventListener('click', () => showStep(STEP_ORDER.indexOf(btn.dataset.jump)));
+      });
+    }
+
+    /* ---- final submit ---- */
+    function submitApplicationNow() {
+      const submitBtn = document.getElementById('next-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting…';
+
+      const applicationData = { ...draft, enrolmentNo: student.EnrolmentNo };
+
+      callApi('submitApplication', applicationData)
+        .then((result) => {
+          if (!result.success) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Application';
+            const messages = result.errors ? Object.values(result.errors) : [result.error];
+            showAlert(document.getElementById('alert-root'), {
+              title: 'A few things need fixing',
+              message: messages.join(' '),
+              tone: 'danger'
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+          }
+
+          clearDraft();
+          setSession({ ...student, hasExistingApplication: true, applicationId: result.applicationId });
+
+          document.getElementById('wizard-view').classList.add('hidden');
+          document.getElementById('confirm-view').classList.remove('hidden');
+          document.getElementById('confirm-ref').textContent = result.applicationId;
+          document.getElementById('confirm-status-link').href = pageUrl('status');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        })
+        .catch((error) => {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Application';
+          showAlert(document.getElementById('alert-root'), {
+            title: 'Submission failed',
+            message: 'Something went wrong sending your application. Please try again.',
+            tone: 'danger'
+          });
+          console.error(error);
+        });
+    }
+  </script>
+</body>
+</html>

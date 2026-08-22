@@ -1,8 +1,7 @@
-<style>
 /* ==========================================================================
    GGSIPU HOSTEL PORTAL — SHARED STYLESHEET
    ==========================================================================
-   Pulled into every page's <head> via  <?!= include('Stylesheet') ?>  .
+   Linked from every page's <head> via <link rel="stylesheet" href="css/stylesheet.css">.
    Keep everything here shared/global — page-specific rules belong in a
    small <style> block at the top of that page instead.
 
@@ -615,4 +614,3 @@ a:focus-visible, button:focus-visible, .btn:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
-</style>
