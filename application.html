@@ -314,19 +314,20 @@
                 <p class="field__error"></p>
               </fieldset>
 
+              <!-- Locked, not a choice: reservation category is derived from
+                   the student's Eligibility record (see
+                   deriveCategoryReservation() in api/_lib/schema.js),
+                   same "From your admission record" locked-field pattern as
+                   DOB/Enrolment No./Course & School above and Hostel on the
+                   Hostel Preferences step below — self-declaring this used
+                   to let anyone pick PWD and get top allocation priority
+                   with no verification. The server re-derives and enforces
+                   this independently in /api/submitApplication regardless
+                   of what this field displays. -->
               <div class="field-row">
                 <div class="field" id="field-reservationCategory">
                   <label class="field__label" for="reservationCategory">Reservation Category <span class="field__required">*</span></label>
-                  <select class="field__control" id="reservationCategory">
-                    <option value="" selected>Select category</option>
-                    <option value="GEN">GEN</option>
-                    <option value="OBC">OBC</option>
-                    <option value="EWS">EWS</option>
-                    <option value="SC">SC</option>
-                    <option value="ST">ST</option>
-                    <option value="PWD">PWD</option>
-                  </select>
-                  <p class="field__error"></p>
+                  <input class="field__control" type="text" id="reservationCategory" disabled>
                 </div>
                 <div></div>
               </div>
@@ -1102,13 +1103,6 @@
       return !!checked;
     }
 
-    function validateSelect(id) {
-      const fieldEl = document.getElementById(`field-${id}`);
-      const value = document.getElementById(id).value;
-      setFieldError(fieldEl, value ? '' : 'Please select an option.');
-      return !!value;
-    }
-
     const PERSONAL_REQUIRED_FIELDS = [
   { id: 'fullName' },
   { id: 'nationality' },
@@ -1167,8 +1161,10 @@
         // fields get their inline error shown at once, not just the first.
         const textOk = PERSONAL_REQUIRED_FIELDS.map(validateTextField).every(Boolean);
         const categoryOk = validateRadioGroup('category');
-        const reservationOk = validateSelect('reservationCategory');
-        return textOk && categoryOk && reservationOk;
+        // Reservation Category itself is locked/derived, not a choice, so
+        // there's nothing of its own left to validate here — see
+        // prefillPersonal() above (same as Hostel on the Hostel step).
+        return textOk && categoryOk;
       }
       if (key === 'family') return FAMILY_REQUIRED_FIELDS.map(validateTextField).every(Boolean);
       if (key === 'guardian') return GUARDIAN_REQUIRED_FIELDS.map(validateTextField).every(Boolean);
@@ -1214,10 +1210,10 @@
     if (el) el.checked = true;
   }
 
-  if (draft.reservationCategory) {
-    document.getElementById('reservationCategory').value =
-      draft.reservationCategory;
-  }
+  // Locked — always the student's real Eligibility-derived value, never
+  // the draft (there's nothing left for the student to choose here).
+  document.getElementById('reservationCategory').value =
+    student.CategoryReservation;
 }
 
     function prefillFamily() {
@@ -1325,7 +1321,11 @@
     studentEmail: document.getElementById('studentEmail').value,
 
     category: document.querySelector('input[name="category"]:checked')?.value ?? '',
-    reservationCategory: document.getElementById('reservationCategory').value,
+    // Re-derived from student, not read off the (disabled, display-only)
+    // #reservationCategory input — the server ignores whatever's sent here
+    // anyway and re-derives it independently in /api/submitApplication, so
+    // this only needs to be correct for the Review step's own display.
+    reservationCategory: student.CategoryReservation,
     extraCurricular: document.getElementById('extraCurricular').value
   };
 }

@@ -17,7 +17,13 @@ const SHEET_NAMES = {
   LOGS: 'Logs'
 };
 
-const ELIGIBILITY_COLUMNS = ['EnrolmentNo', 'Name', 'DOB', 'Course', 'School', 'Gender'];
+// CategoryReservation appended 2026-08-23 to lock reservation-category
+// against Eligibility instead of leaving it self-declared on the
+// application form (see deriveCategoryReservation() below) — appended at
+// the END, never inserted, for the same column-position-safety reason as
+// the APPLICATIONS_COLUMNS note further down. The live Eligibility sheet's
+// header row needs this same column appended — see SETUP.md.
+const ELIGIBILITY_COLUMNS = ['EnrolmentNo', 'Name', 'DOB', 'Course', 'School', 'Gender', 'CategoryReservation'];
 
 const APPLICATIONS_COLUMNS = [
   'ApplicationID', 'EnrolmentNo', 'Name', 'Nationality', 'DOB', 'Course', 'School',
@@ -204,6 +210,33 @@ function deriveHostelFromGender(gender) {
   return null;
 }
 
+// The only six reservation-category values the form/schema recognize.
+const RESERVATION_CATEGORIES = ['GEN', 'SC', 'ST', 'OBC', 'EWS', 'PWD'];
+
+/**
+ * Normalizes an Eligibility row's CategoryReservation value against
+ * RESERVATION_CATEGORIES, or returns null if it's blank or doesn't match
+ * any of them. Trimmed + uppercased before comparing — same normalize-
+ * before-compare discipline as parseSheetDate()/deriveHostelFromGender()
+ * above, so an admin hand-typing " pwd" or "obc" into the sheet isn't
+ * silently treated as unrecognized. This codebase has already hit this
+ * exact bug class twice (DOB format mismatch, room-type casing mismatch)
+ * from raw string comparisons against hand-typed sheet data — don't
+ * "simplify" this back into one.
+ *
+ * Returns null (never a default) so the caller decides what null means —
+ * see buildApplicationRow() below, which defaults null to 'GEN' rather
+ * than rejecting the submission (unlike deriveHostelFromGender(), where
+ * null blocks submission outright). That's a deliberate difference: not
+ * every Eligibility row will have CategoryReservation pre-populated by
+ * admin before this shipped, and GEN carries no allocation-priority
+ * advantage, so defaulting is the safe direction to fail in.
+ */
+function deriveCategoryReservation(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  return RESERVATION_CATEGORIES.includes(normalized) ? normalized : null;
+}
+
 /** Reads a dotted path ('localGuardian.office.tel') off a plain object; undefined if any segment is missing. */
 function getPath(obj, path) {
   return path.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
@@ -297,7 +330,13 @@ function buildApplicationRow(formData, elig, applicationId) {
     School: elig.School,
     DateOfJoiningUniversity: formData.dateOfJoining,
     CategoryResidence: formData.category,
-    CategoryReservation: formData.reservationCategory,
+    // Locked/derived from Eligibility, not read from the client — same
+    // override pattern as Name/DOB/Course/School/HostelChoice above. Unlike
+    // HostelChoice, an unrecognized/blank value here defaults to 'GEN'
+    // rather than rejecting the submission — see deriveCategoryReservation()'s
+    // doc comment for why. (CategoryResidence just above stays self-declared
+    // for now — deliberately out of scope for this lock, see submitApplication.js.)
+    CategoryReservation: deriveCategoryReservation(elig.CategoryReservation) || 'GEN',
     FatherName: formData.fatherName,
     MotherName: formData.motherName,
     // Parent office address: the UI redesign dropped this section entirely
@@ -396,6 +435,8 @@ module.exports = {
   rowToObject,
   parseSheetDate,
   deriveHostelFromGender,
+  RESERVATION_CATEGORIES,
+  deriveCategoryReservation,
   isValidEmailServer,
   getPath,
   validateApplicationFields,

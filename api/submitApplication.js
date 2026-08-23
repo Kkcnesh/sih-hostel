@@ -9,11 +9,16 @@
  * (edit-before-verification is allowed) and keeps its original
  * ApplicationID; once VerificationStatus moves past "Pending" the row is
  * locked and resubmission is rejected. Identity fields (Name/DOB/Course/
- * School/HostelChoice) are re-read from Eligibility here rather than
- * trusted from the client, same as before — HostelChoice specifically is
- * derived from Gender (deriveHostelFromGender() in _lib/schema.js) and,
- * unlike the others, rejects the whole submission outright if Gender
- * doesn't map cleanly, rather than substituting anything.
+ * School/HostelChoice/CategoryReservation) are re-read from Eligibility
+ * here rather than trusted from the client, same as before — HostelChoice
+ * specifically is derived from Gender (deriveHostelFromGender() in
+ * _lib/schema.js) and, unlike the others, rejects the whole submission
+ * outright if Gender doesn't map cleanly, rather than substituting
+ * anything. CategoryReservation (deriveCategoryReservation()) instead
+ * defaults to 'GEN' on a blank/unrecognized Eligibility value — see the
+ * check right before buildApplicationRow() below for why. CategoryResidence
+ * (Delhi/Outside Delhi/Transferred) is NOT locked as of this change —
+ * deliberately still self-declared by the client, out of scope for this pass.
  *
  * KNOWN LIMITATION — race condition, flagged rather than silently dropped:
  * Code.gs used LockService.getScriptLock() to make the whole "check
@@ -41,6 +46,7 @@ const {
   COUNTERS_COLUMNS,
   validateApplicationFields,
   deriveHostelFromGender,
+  deriveCategoryReservation,
   buildApplicationRow
 } = require('./_lib/schema');
 const { generateApplicationPDF } = require('./_lib/pdf');
@@ -108,6 +114,19 @@ async function submitApplication(formData) {
       targetRow = applicationRows.length > 0
         ? applicationRows[applicationRows.length - 1]._row + 1
         : 2; // first data row, right after the header
+    }
+
+    // CategoryReservation is enforced here too, not just in the UI — a
+    // direct API call can send any reservationCategory it likes;
+    // buildApplicationRow() below ignores it completely and re-derives from
+    // elig.CategoryReservation instead (same override pattern as Name/DOB/
+    // Course/School/HostelChoice). Unlike HostelChoice, a blank or
+    // unrecognized value here does NOT block submission — it silently
+    // defaults to 'GEN' inside buildApplicationRow() — but it's logged here
+    // first so a genuine admin typo in the sheet (e.g. "OBS" instead of
+    // "OBC") leaves a trace instead of being a fully silent downgrade.
+    if (elig.CategoryReservation && !deriveCategoryReservation(elig.CategoryReservation)) {
+      await logEvent('submitApplication', `Eligibility row has unrecognized CategoryReservation "${elig.CategoryReservation}" — defaulted to GEN for this submission.`, enrolmentNo);
     }
 
     const rowObject = buildApplicationRow(formData, elig, applicationId);

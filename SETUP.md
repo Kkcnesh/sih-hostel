@@ -59,9 +59,17 @@ You'll do six things, in order: create an OAuth client in Google Cloud, run a on
 2. This app also uploads files to a Drive folder named `Hostel Applications` (created automatically the first time someone uploads a document), in that same account's Drive.
 3. Create 5 tabs in HostelDB with these exact header rows (row 1 of each tab, exact spelling/order). **Correction: the backend does NOT actually read columns by name** — `getSheetRows()`/`writeRowAt()` in `api/_lib/sheets.js` read/write a fixed `A2:<lastCol>` range purely by COLUMN POSITION, matching each code-side `*_COLUMNS` array index to a letter. The header row is for human reference only; code never looks at it. This means column ORDER must match the arrays in `api/_lib/schema.js` exactly, and any future column must be appended at the end, never inserted/reordered/removed — doing either would silently misalign every existing row.
 
-   **Eligibility**
+   **Eligibility** — `CategoryReservation` added 2026-08-23 to lock reservation
+   category (GEN/SC/ST/OBC/EWS/PWD) against this sheet instead of leaving it
+   self-declared on the application form. Appended at the end — see the
+   caveat above. If your live sheet predates this, add one header cell after
+   `Gender`, then fill in a value for **every existing row**, including any
+   test students — a blank cell defaults to `GEN` (see
+   `deriveCategoryReservation()` in `api/_lib/schema.js`), so nobody is
+   blocked, but anyone who should actually be SC/ST/OBC/EWS/PWD won't get
+   correct allocation priority until you fill it in.
    ```
-   EnrolmentNo	Name	DOB	Course	School	Gender
+   EnrolmentNo	Name	DOB	Course	School	Gender	CategoryReservation
    ```
 
    **Applications** — updated 2026-08-23 for the structured-address UI redesign; the 19 columns from `FatherPhone` onward are new (appended at the end — see the caveat above). If your live sheet predates this, add these 19 header cells after the existing `WaitlistPosition` column; don't touch anything before it.
@@ -89,7 +97,7 @@ You'll do six things, in order: create an OAuth client in Google Cloud, run a on
 
    (Tip: paste each header row into cell A1 of its tab — Sheets will split it across columns automatically if you paste it as tab-separated text.)
 
-4. Seed a few real rows into **Eligibility** so you have something to log in with (`EnrolmentNo`, `Name`, `DOB` as `YYYY-MM-DD`, `Course`, `School`, `Gender`).
+4. Seed a few real rows into **Eligibility** so you have something to log in with (`EnrolmentNo`, `Name`, `DOB` as `YYYY-MM-DD`, `Course`, `School`, `Gender`, `CategoryReservation` — one of `GEN`/`SC`/`ST`/`OBC`/`EWS`/`PWD`).
 5. Copy the sheet's ID out of its URL — `https://docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit`.
 
 ## 4. Set the environment variables in Vercel

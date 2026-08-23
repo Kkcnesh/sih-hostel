@@ -76,6 +76,10 @@ const ROOM_TYPES = ['Triple-sharing', '4-sharing'];
  * 3-tier policy (see the file header comment).
  */
 function priorityTier(candidate) {
+  // Normalized (trim + uppercase) before comparing, not a raw exact match —
+  // this codebase has already hit this exact bug class twice (DOB format
+  // mismatch, room-type casing mismatch) from comparing hand-typed sheet
+  // data as raw strings. Don't "simplify" this back into one.
   if (String(candidate.CategoryReservation || '').trim().toUpperCase() === 'PWD') return 1;
   if (String(candidate.CategoryResidence || '').trim() !== 'Delhi') return 2;
   return 3;

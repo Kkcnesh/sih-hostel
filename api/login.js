@@ -11,7 +11,7 @@
  */
 
 const { getSheetRows, logEvent } = require('./_lib/sheets');
-const { SHEET_NAMES, ELIGIBILITY_COLUMNS, APPLICATIONS_COLUMNS, parseSheetDate } = require('./_lib/schema');
+const { SHEET_NAMES, ELIGIBILITY_COLUMNS, APPLICATIONS_COLUMNS, parseSheetDate, deriveCategoryReservation } = require('./_lib/schema');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -60,7 +60,13 @@ async function loginStudent({ enrolmentNo, dob }) {
         DOB: eligDob, // already parsed above, into a clean YYYY-MM-DD
         Course: elig.Course,
         School: elig.School,
-        Gender: elig.Gender
+        Gender: elig.Gender,
+        // Locked, same as everything else here — defaults to 'GEN' when the
+        // Eligibility row doesn't have this populated yet, matching what
+        // /api/submitApplication actually writes (see buildApplicationRow()
+        // in _lib/schema.js), so this page never shows a different value
+        // than what submission will lock in.
+        CategoryReservation: deriveCategoryReservation(elig.CategoryReservation) || 'GEN'
       },
       hasExistingApplication: !!existingApplication,
       applicationId: existingApplication ? existingApplication.ApplicationID : null
