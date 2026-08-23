@@ -32,7 +32,13 @@ const REDIRECT_URI = `http://localhost:${PORT}/oauth2callback`;
 
 const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/drive'
+  'https://www.googleapis.com/auth/drive',
+  // Added for the application-confirmation / allotment-letter emails
+  // (_lib/mailer.js) — lets the authorized account send mail via the Gmail
+  // API as itself. A refresh token generated BEFORE this scope was added
+  // does not have it and cannot be upgraded in place; re-run this script
+  // and replace GOOGLE_REFRESH_TOKEN in Vercel. See SETUP.md.
+  'https://www.googleapis.com/auth/gmail.send'
 ];
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
@@ -56,7 +62,9 @@ const authUrl = oAuth2Client.generateAuthUrl({
 });
 
 console.log('\n1. Open this URL in your browser and approve access with the Google account');
-console.log('   that should own the HostelDB sheet and the uploaded documents:\n');
+console.log('   that should own the HostelDB sheet, the uploaded documents, and send the');
+console.log('   confirmation/allotment emails (the consent screen will now also ask to');
+console.log('   send email as this account):\n');
 console.log(`   ${authUrl}\n`);
 console.log('2. Waiting for the browser redirect back to this script...\n');
 

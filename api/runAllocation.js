@@ -47,6 +47,8 @@ const { getSheetRows, writeRowAt, logEvent } = require('./_lib/sheets');
 const { SHEET_NAMES, APPLICATIONS_COLUMNS, ROOM_INVENTORY_COLUMNS } = require('./_lib/schema');
 const { HOSTELS, ROOM_TYPES, compareCandidates, allocatePool } = require('./_lib/allocation');
 const { requireAdmin } = require('./_lib/adminAuth');
+const { generateAllotmentPDF } = require('./_lib/pdf');
+const { sendAllotmentEmail } = require('./_lib/mailer');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -78,6 +80,7 @@ async function runAllocation() {
     const warnings = [];
     const applicationWrites = [];
     const roomWrites = [];
+    const emailSends = [];
     const allResults = [];
 
     for (const hostel of HOSTELS) {
@@ -114,6 +117,25 @@ async function runAllocation() {
             WaitlistPosition: result.waitlistPosition != null ? result.waitlistPosition : ''
           };
           applicationWrites.push(writeRowAt(SHEET_NAMES.APPLICATIONS, APPLICATIONS_COLUMNS, candidateRow._row, updatedRow));
+
+          // Allotment email — only for rows THIS run newly moved to
+          // "Allotted" (every row in `results` was "Not Processed" before
+          // this run, per the `candidates` filter above, so `status ===
+          // 'Allotted'` here always means "newly allotted just now", never
+          // a previously-allotted row). Waitlisted candidates get no email
+          // (not asked for). Best-effort: sendAllotmentEmail() never
+          // throws (see mailer.js), and a PDF-generation failure is caught
+          // here so it can't affect applicationWrites/roomWrites below.
+          if (result.status === 'Allotted') {
+            const roommateName = result.roommateEnrolmentNo
+              ? (ranked.find((c) => c.EnrolmentNo === result.roommateEnrolmentNo) || {}).Name || ''
+              : '';
+            emailSends.push(
+              generateAllotmentPDF(updatedRow, { hostel, roomType, roomNo: result.roomNo, roommateName })
+                .then((pdfBuffer) => sendAllotmentEmail(updatedRow, pdfBuffer))
+                .catch((err) => logEvent('runAllocation', `Allotment email failed for ${result.enrolmentNo}: ${err.message}`, result.enrolmentNo))
+            );
+          }
 
           allResults.push({
             enrolmentNo: result.enrolmentNo,
@@ -160,7 +182,13 @@ async function runAllocation() {
       .filter((c) => !knownPoolKeys.has(`${c.HostelChoice}|${c.RoomTypePreference}`))
       .forEach((c) => warnings.push(`${c.EnrolmentNo}: unrecognized HostelChoice/RoomTypePreference combo ("${c.HostelChoice}" / "${c.RoomTypePreference}") — left as Not Processed.`));
 
-    await Promise.all([...applicationWrites, ...roomWrites]);
+    // emailSends is included here (not fired-and-forgotten) for the same
+    // reason submitApplication.js awaits its confirmation email — a Vercel
+    // serverless function has no guaranteed background execution after the
+    // response is sent. Every promise in emailSends already resolves
+    // (never rejects) even on failure, so this can't turn a successful
+    // allocation run into an error response.
+    await Promise.all([...applicationWrites, ...roomWrites, ...emailSends]);
 
     return {
       success: true,

@@ -43,6 +43,8 @@ const {
   deriveHostelFromGender,
   buildApplicationRow
 } = require('./_lib/schema');
+const { generateApplicationPDF } = require('./_lib/pdf');
+const { sendApplicationConfirmationEmail } = require('./_lib/mailer');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -110,6 +112,24 @@ async function submitApplication(formData) {
 
     const rowObject = buildApplicationRow(formData, elig, applicationId);
     await writeRowAt(SHEET_NAMES.APPLICATIONS, APPLICATIONS_COLUMNS, targetRow, rowObject);
+
+    // Confirmation email is a best-effort side effect, generated/sent AFTER
+    // the sheet write above has already succeeded — wrapped in its own
+    // try/catch so a PDF or Gmail failure can never turn this response into
+    // success:false (the application is already saved regardless).
+    // Deliberately AWAITED rather than fire-and-forget: a plain Vercel
+    // serverless function (this style, not an Edge Function) has no
+    // guaranteed background execution once res.json() below sends the
+    // response — an un-awaited send risks the function being frozen
+    // mid-request and the email silently never going out. mailer.js's own
+    // internal try/catch means a failure here already resolves to `false`
+    // rather than throwing; this outer try/catch only guards generateApplicationPDF().
+    try {
+      const pdfBuffer = await generateApplicationPDF(rowObject);
+      await sendApplicationConfirmationEmail(rowObject, pdfBuffer);
+    } catch (err) {
+      await logEvent('submitApplication', `Confirmation email failed: ${err.message}`, enrolmentNo);
+    }
 
     return { success: true, applicationId };
   } catch (err) {

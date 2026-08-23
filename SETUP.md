@@ -1,20 +1,41 @@
 # Setup — GGSIPU Hostel Portal on Vercel
 
-This app is now static HTML/CSS/JS (`index.html`, `application.html`, `status.html`, `css/`, `js/`) plus four Vercel Serverless Functions under `api/` that talk to Google Sheets and Google Drive using **OAuth 2.0 with a refresh token, acting as your own Google account** — not a service account (Cloud Console's org policy on this project blocks creating service account keys, so this is the workaround). No Google Apps Script involved anymore.
+This app is now static HTML/CSS/JS (`index.html`, `application.html`, `status.html`, `css/`, `js/`) plus Vercel Serverless Functions under `api/` that talk to Google Sheets, Google Drive, and (as of the email-notification feature) the Gmail API using **OAuth 2.0 with a refresh token, acting as your own Google account** — not a service account (Cloud Console's org policy on this project blocks creating service account keys, so this is the workaround). No Google Apps Script involved anymore.
 
 You'll do six things, in order: create an OAuth client in Google Cloud, run a one-time local script to get a refresh token, create the HostelDB sheet under your own account, set three environment variables in Vercel, deploy, then seed some test data.
 
 ## 1. Create a Google Cloud OAuth client
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a new project (or pick an existing one) — name doesn't matter, e.g. "ggsipu-hostel-portal".
-2. In the left sidebar: **APIs & Services → Library**. Search for and **enable** both:
+2. In the left sidebar: **APIs & Services → Library**. Search for and **enable** all three:
    - **Google Sheets API**
    - **Google Drive API**
+   - **Gmail API** — needed for the application-confirmation and allotment-letter emails (`api/_lib/mailer.js`)
 3. **APIs & Services → OAuth consent screen** — set it up if you haven't already (External is fine for testing; add your own Google account as a test user if it asks).
 4. **APIs & Services → Credentials → Create Credentials → OAuth client ID**. Application type: **Desktop app** (not "Web application" — Desktop-app clients are allowed to use a `localhost` redirect without pre-registering it, which is what the local script in step 2 needs). Name it anything, e.g. "hostel-portal-local".
 5. After creating it, copy the **Client ID** and **Client secret** shown — you'll need both in the next step.
 
 ## 2. Get a refresh token (run once, locally)
+
+> **⚠️ Existing deployments: you MUST regenerate this token.** As of the
+> email-notification feature (`api/_lib/mailer.js`), `scripts/get-refresh-token.js`
+> requests one additional OAuth scope —
+> `https://www.googleapis.com/auth/gmail.send` — alongside the two it already
+> requested. OAuth scopes are baked into a refresh token at the moment it's
+> issued; an existing `GOOGLE_REFRESH_TOKEN` generated before this change
+> does **not** have the Gmail scope and cannot be upgraded in place. If you
+> already have a working deployment, you must re-run step 2 below and
+> replace `GOOGLE_REFRESH_TOKEN` in Vercel with the newly-printed value, or
+> every confirmation/allotment email will fail with an
+> `insufficient authentication scopes` error (the application/allotment
+> writes themselves will still succeed — see the "Testing" note in
+> `api/_lib/mailer.js` — but no email will go out until the token is
+> replaced). The full scope list requested is now:
+> ```
+> https://www.googleapis.com/auth/spreadsheets
+> https://www.googleapis.com/auth/drive
+> https://www.googleapis.com/auth/gmail.send
+> ```
 
 1. In this project folder, install dependencies if you haven't: `npm install`.
 2. Copy `.env.example` to `.env` and fill in the Client ID/secret from step 1.5:
@@ -118,9 +139,13 @@ If this project isn't linked to Vercel yet: `vercel` from this folder (or connec
 2. Fill out all 6 application steps, upload all 6 documents, submit
 3. Check the Applications tab in HostelDB — a new row should appear with a real `ApplicationID` (format `HA-2026-000123`)
 4. Check the `Hostel Applications/<EnrolmentNo>/` folder in the Drive of the account you authorized in step 2.4 — the 6 uploaded files should be there
-5. Reload and check the Status page pulls the just-submitted data back correctly
+5. Check the `StudentEmail` inbox from that same application — a confirmation email should arrive with the application PDF attached (only that address, never any parent/guardian email column)
+6. Reload and check the Status page pulls the just-submitted data back correctly
+7. Run `POST /api/runAllocation` (see the `ADMIN_SECRET` section above) and confirm any student it allots gets a second email with the formal allotment letter PDF attached, and that a waitlisted student gets no email
 
-If something fails, check the function's logs in the Vercel dashboard (**Project → Deployments → (latest) → Functions**) — every unexpected error is also written to the **Logs** tab in HostelDB with a timestamp/context.
+If something fails, check the function's logs in the Vercel dashboard (**Project → Deployments → (latest) → Functions**) — every unexpected error, including a failed email send, is also written to the **Logs** tab in HostelDB with a timestamp/context (email failures never block the application/allocation write itself — see `api/_lib/mailer.js`).
+
+Note: the OAuth consent screen may show an "unverified app" warning when you approve access in step 2 (now that it requests the `gmail.send` scope) if that consent screen hasn't gone through Google's verification — this is expected for a project running in Testing mode with yourself listed as a test user, and doesn't block anything for this hackathon/pilot scope.
 
 ## What's different from the original Apps Script version (know before you rely on this)
 
