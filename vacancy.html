@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<!-- ==========================================================================
+     VACANCY — public, no-login seat availability
+     ==========================================================================
+     No requireSession() / gate at all, deliberately — this page (and its
+     backing GET /api/vacancy, see that file) is the app's answer to the
+     problem statement's own stated pain point ("limited transparency for
+     students and parents"). Anyone can load this directly, logged in or
+     not. Read-only: aggregate capacity/occupied/vacant counts per Hostel x
+     RoomType pool, no individual room numbers, nothing tied to a student.
+     ========================================================================== -->
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GGSIPU Hostel Portal — Vacancy</title>
+  <link rel="stylesheet" href="css/stylesheet.css">
+  <style>
+    #vacancy-root {
+      width: 100%;
+      max-width: 860px;
+      margin: 0 auto;
+      padding-top: var(--space-6);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="site-header" id="site-header"></header>
+
+    <main>
+      <div id="vacancy-root" class="stack"><!-- populated by JS --></div>
+    </main>
+
+    <footer class="site-footer" id="site-footer"></footer>
+  </div>
+
+  <script src="js/script.js"></script>
+  <script>
+    /* ==========================================================================
+       PAGE GLUE — Vacancy
+       ========================================================================== */
+    const vacancyRoot = document.getElementById('vacancy-root');
+
+    renderSiteHeader(document.getElementById('site-header'), { activeNav: 'vacancy' });
+    renderSiteFooter(document.getElementById('site-footer'));
+
+    const POOL_ORDER = [
+      { hostel: 'Boys', roomType: 'Triple-sharing' },
+      { hostel: 'Boys', roomType: '4-sharing' },
+      { hostel: 'Girls', roomType: 'Triple-sharing' },
+      { hostel: 'Girls', roomType: '4-sharing' }
+    ];
+
+    loadVacancy();
+
+    function loadVacancy() {
+      renderLoading();
+      // Plain fetch, not callApi() — callApi() always POSTs a JSON body
+      // (see js/script.js); this endpoint is a public, payload-less GET,
+      // so a bespoke fetch here is simpler than bending that helper to fit.
+      fetch('/api/vacancy')
+        .then((res) => {
+          if (!res.ok) throw new Error(`Request failed (${res.status})`);
+          return res.json();
+        })
+        .then((result) => {
+          if (!result.success) {
+            renderError(result.error || 'Something went wrong loading vacancy data.');
+            return;
+          }
+          renderPools(result.pools);
+        })
+        .catch((error) => {
+          console.error(error);
+          renderError('Something went wrong loading vacancy data. Please try again.');
+        });
+    }
+
+    function renderLoading() {
+      vacancyRoot.innerHTML = `
+        <div class="panel">
+          <div>
+            <p class="eyebrow">Live Availability · No Login Required</p>
+            <h1 style="font-size: var(--text-2xl); margin-top: var(--space-2);">Hostel Seat Vacancy</h1>
+            <p class="text-muted" style="margin-top: 4px;">Loading current seat availability…</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderError(message) {
+      vacancyRoot.innerHTML = `
+        <div class="panel">
+          <div>
+            <p class="eyebrow">Live Availability · No Login Required</p>
+            <h1 style="font-size: var(--text-2xl); margin-top: var(--space-2);">Hostel Seat Vacancy</h1>
+          </div>
+          <div id="vacancy-alert-root"></div>
+        </div>
+      `;
+      showAlert(document.getElementById('vacancy-alert-root'), {
+        title: 'Couldn’t load vacancy data',
+        message,
+        tone: 'danger'
+      });
+    }
+
+    function renderPools(pools) {
+      // Render in a fixed, predictable order (Boys then Girls, Triple-
+      // sharing then 4-sharing) rather than whatever order the API
+      // happened to return — POOL_ORDER mirrors the same 4 pools
+      // _lib/allocation.js's HOSTELS x ROOM_TYPES iterates in.
+      const orderedPools = POOL_ORDER.map(
+        (key) => pools.find((p) => p.hostel === key.hostel && p.roomType === key.roomType)
+      ).filter(Boolean);
+
+      const cardsHtml = orderedPools.map(renderCard).join('');
+
+      vacancyRoot.innerHTML = `
+        <div class="panel">
+          <div class="vacancy-meta">
+            <div>
+              <p class="eyebrow">Live Availability · No Login Required</p>
+              <h1 style="font-size: var(--text-2xl); margin-top: var(--space-2);">Hostel Seat Vacancy</h1>
+              <p class="text-muted" style="margin-top: 4px;">Aggregate seat counts, updated as rooms fill — for individual application status, use Student Login instead.</p>
+            </div>
+            <button type="button" class="btn btn--ghost btn--sm" id="vacancy-refresh">Refresh</button>
+          </div>
+
+          <div class="vacancy-grid">
+            ${cardsHtml}
+          </div>
+
+          <p class="text-muted" style="font-size: var(--text-xs);" id="vacancy-updated"></p>
+        </div>
+      `;
+
+      document.getElementById('vacancy-updated').textContent =
+        `Last updated ${new Date().toLocaleTimeString()}`;
+      document.getElementById('vacancy-refresh').addEventListener('click', loadVacancy);
+    }
+
+    function renderCard(pool) {
+      const capacity = Math.max(0, Number(pool.capacity) || 0);
+      const vacant = Math.max(0, Number(pool.vacant) || 0);
+      const filled = Math.max(0, capacity - vacant);
+      const percentFilled = capacity > 0 ? Math.min(100, Math.round((filled / capacity) * 100)) : 0;
+      const isFull = capacity > 0 && vacant === 0;
+
+      return `
+        <div class="vacancy-card${isFull ? ' vacancy-card--full' : ''}">
+          <div class="vacancy-card__header">
+            <div>
+              <div class="vacancy-card__hostel">${pool.hostel} Hostel</div>
+              <div class="vacancy-card__type">${pool.roomType}</div>
+            </div>
+            ${isFull ? '<span class="vacancy-card__badge">Full</span>' : ''}
+          </div>
+
+          <div class="vacancy-card__vacant">
+            <span class="vacancy-card__vacant-num">${vacant}</span>
+            <span class="vacancy-card__vacant-label">seat${vacant === 1 ? '' : 's'} vacant</span>
+          </div>
+
+          <div class="vacancy-meter">
+            <div class="vacancy-meter__fill" style="width: ${percentFilled}%;"></div>
+          </div>
+
+          <div class="vacancy-card__footer">${filled} of ${capacity} seats filled</div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

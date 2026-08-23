@@ -1248,6 +1248,10 @@ legend {
     width: auto;
   }
 
+  .vacancy-grid {
+    grid-template-columns: 1fr;
+  }
+
 }
 
 
@@ -1341,6 +1345,119 @@ button:focus-visible,
   font-size: 9px;
   font-weight: 500;
   white-space: nowrap;
+}
+
+
+/* --------------------------------------------------------------------------
+   VACANCY (public, no-login seat availability — vacancy.html)
+   -------------------------------------------------------------------------- */
+
+.vacancy-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.vacancy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.vacancy-card {
+  background: var(--surface);
+  border: 1px solid #D8D8D8;
+  border-left: 4px solid var(--success);
+  border-radius: 3px;
+  padding: var(--space-5);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.04);
+}
+
+.vacancy-card--full {
+  border-left-color: var(--danger);
+}
+
+.vacancy-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.vacancy-card__hostel {
+  font-weight: 700;
+  font-size: var(--text-lg);
+  color: var(--text);
+}
+
+.vacancy-card__type {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.vacancy-card__badge {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+
+.vacancy-card__vacant {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.vacancy-card__vacant-num {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--success);
+  line-height: 1;
+}
+
+.vacancy-card--full .vacancy-card__vacant-num {
+  color: var(--danger);
+}
+
+.vacancy-card__vacant-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.vacancy-meter {
+  height: 8px;
+  background: var(--surface-muted);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.vacancy-meter__fill {
+  height: 100%;
+  width: 0%;
+  background: var(--orange);
+  transition: width 400ms ease;
+}
+
+.vacancy-card--full .vacancy-meter__fill {
+  background: var(--danger);
+}
+
+.vacancy-card__footer {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 

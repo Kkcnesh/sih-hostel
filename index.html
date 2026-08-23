@@ -99,7 +99,7 @@
   <script src="js/script.js"></script>
   <script>
     /* ---- page glue: wires the form to POST /api/login ---- */
-    renderSiteHeader(document.getElementById('site-header'));
+    renderSiteHeader(document.getElementById('site-header'), { activeNav: 'login' });
     renderSiteFooter(document.getElementById('site-footer'));
 
     const submitBtn = document.getElementById('login-submit');

@@ -41,7 +41,8 @@
   const PAGE_FILES = {
     login: 'index.html',
     application: 'application.html',
-    status: 'status.html'
+    status: 'status.html',
+    vacancy: 'vacancy.html'
   };
 
   function pageUrl(key) {
@@ -173,13 +174,20 @@
         <a href="admin.html">Admin Login</a>
       `;
 
+  // Check Vacancy is public (no login) — see api/vacancy.js — so it's
+  // shown in both nav variants below, logged in or not, not tucked behind
+  // a session check like Apply/Track Status.
+  const vacancyLink = `<a href="${pageUrl('vacancy')}" ${activeNav === 'vacancy' ? 'aria-current="page"' : ''}>Check Vacancy</a>`;
+
   const navLinks = student
     ? `
         <a href="${applicationEntryUrl(student)}" ${activeNav === 'apply' ? 'aria-current="page"' : ''}>Apply for Hostel</a>
         <a href="${pageUrl('status')}" ${activeNav === 'status' ? 'aria-current="page"' : ''}>Track Status</a>
+        ${vacancyLink}
       `
     : `
-        <a href="${pageUrl('login')}" aria-current="page">Student Login</a>
+        <a href="${pageUrl('login')}" ${activeNav === 'login' ? 'aria-current="page"' : ''}>Student Login</a>
+        ${vacancyLink}
       `;
 
   rootEl.innerHTML = `
