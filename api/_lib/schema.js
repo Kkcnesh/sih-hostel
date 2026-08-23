@@ -33,7 +33,34 @@ const APPLICATIONS_COLUMNS = [
   'PhotoDriveLink', 'AadharDriveLink', 'MarksheetsDriveLink',
   'MedicalCertDriveLink', 'GuardianConsentDriveLink', 'AntiRaggingDriveLink',
   'SubmissionTimestamp', 'VerificationStatus', 'AllotmentStatus',
-  'AllottedRoomNo', 'AllottedRoommateEnrolmentNo', 'WaitlistPosition'
+  'AllottedRoomNo', 'AllottedRoommateEnrolmentNo', 'WaitlistPosition',
+
+  // ---- Appended 2026-08-23 for the structured-address UI redesign ----
+  // MUST stay appended at the end, in this exact order, and never be
+  // reordered/renamed/removed above this line. getSheetRows()/writeRowAt()
+  // in _lib/sheets.js read and write purely by COLUMN POSITION (A2:<lastCol>),
+  // not by matching header text — so touching anything above this line
+  // would silently misalign every existing row in the live HostelDB sheet.
+  // The live sheet's header row (row 1) needs these same names appended
+  // in this same order as of this change — see SETUP.md.
+  //
+  // The old ParentOfficeAddress/Tel/Email, GuardianOfficeAddress/Tel/Email
+  // and GuardianResidenceAddress/Tel/Email columns above are kept in place
+  // (never populated for new submissions, see buildApplicationRow()) rather
+  // than removed, for the same column-position-safety reason. ParentResidenceAddress
+  // is also no longer populated — the UI collects the parent's residence
+  // address as the 7 structured fields below instead of one free-text string.
+  'FatherPhone', 'MotherPhone',
+  'ParentResidenceHouseNo', 'ParentResidenceStreetArea', 'ParentResidenceCity',
+  'ParentResidenceDistrict', 'ParentResidenceState', 'ParentResidencePincode',
+  'ParentResidenceLandmark',
+  // Local guardian: the UI redesign collapsed the old residence/office split
+  // into a single address (and dropped guardian email entirely) — see the
+  // note above priorityTier()-adjacent buildApplicationRow() below for why
+  // these are the only guardian columns populated going forward.
+  'GuardianName', 'GuardianRelationship', 'GuardianPhone',
+  'GuardianHouseNo', 'GuardianStreetArea', 'GuardianCity',
+  'GuardianDistrict', 'GuardianState', 'GuardianPincode', 'GuardianLandmark'
 ];
 
 // The only two values VerificationStatus is ever set to — confirmed against
@@ -195,6 +222,19 @@ function validateApplicationFields(formData) {
     const value = getPath(formData, path);
     if (value && !isValidEmailServer(value)) errors[path] = `${label} must be a valid email address.`;
   };
+  // Format-check only if present — for fields the UI marks Optional (e.g.
+  // Residence Email), don't require them, but still reject a garbled value.
+  const optionalEmail = (path, label) => {
+    const value = getPath(formData, path);
+    if (value && !isValidEmailServer(value)) errors[path] = `${label} must be a valid email address.`;
+  };
+  const requireMobile = (path, label) => {
+    requireText(path, label);
+    const value = getPath(formData, path);
+    if (value && !/^[6-9]\d{9}$/.test(String(value).trim())) {
+      errors[path] = `${label} must be a valid 10-digit mobile number.`;
+    }
+  };
 
   requireText('nationality', 'Nationality');
   requireText('dateOfJoining', 'Date of joining university');
@@ -202,19 +242,30 @@ function validateApplicationFields(formData) {
   requireText('reservationCategory', 'Reservation category');
   requireText('fatherName', "Father's name");
   requireText('motherName', "Mother's name");
-  requireText('residenceAddress.address', 'Residence address');
-  requireText('residenceAddress.tel', 'Residence telephone number');
-  requireEmail('residenceAddress.email', 'Residence email');
-  requireText('studentMobile', 'Mobile number');
+  requireMobile('fatherPhone', "Father's phone number");
+  requireMobile('motherPhone', "Mother's phone number");
+  // Residence address: structured (houseNo/streetArea/city/district/state/
+  // pincode required, landmark optional) as of the UI redesign — replaces
+  // the old single free-text 'residenceAddress.address' field. Tel/Email
+  // are Optional in the current UI (downgraded from required — matches
+  // what the form actually marks, not the old schema's assumption).
+  requireText('residenceAddress.houseNo', 'House / Flat No.');
+  requireText('residenceAddress.streetArea', 'Street / Area / Locality');
+  requireText('residenceAddress.city', 'Town / City');
+  requireText('residenceAddress.district', 'District');
+  requireText('residenceAddress.state', 'State');
+  requireText('residenceAddress.pincode', 'PIN Code');
+  optionalEmail('residenceAddress.email', 'Residence email');
+  requireMobile('studentMobile', 'Mobile number');
   requireEmail('studentEmail', 'Student email');
   requireText('emergencyAddress', 'Emergency contact address');
   requireText('emergencyTel', 'Emergency contact telephone number');
-  requireText('localGuardian.residence.address', "Guardian's residence address");
-  requireText('localGuardian.residence.tel', "Guardian's residence telephone number");
-  requireEmail('localGuardian.residence.email', "Guardian's residence email");
-  requireText('localGuardian.office.address', "Guardian's office address");
-  requireText('localGuardian.office.tel', "Guardian's office telephone number");
-  requireEmail('localGuardian.office.email', "Guardian's office email");
+  // Local guardian: the UI redesign made the entire section Optional (no
+  // required fields at all) and collapsed the old residence/office split
+  // into one address with no guardian email — see buildApplicationRow()
+  // below. Nothing to require here; left deliberately empty rather than
+  // silently omitted, so a future re-introduction of a required guardian
+  // field has an obvious place to go.
   requireText('hostel', 'Hostel');
   requireText('roomType', 'Room type preference');
 
@@ -223,10 +274,6 @@ function validateApplicationFields(formData) {
       errors[`documents.${key}`] = `The ${key} document is required.`;
     }
   });
-
-  if (formData.studentMobile && !/^[6-9]\d{9}$/.test(String(formData.studentMobile).trim())) {
-    errors.studentMobile = 'Mobile number must be a valid 10-digit number.';
-  }
 
   return errors;
 }
@@ -253,18 +300,27 @@ function buildApplicationRow(formData, elig, applicationId) {
     CategoryReservation: formData.reservationCategory,
     FatherName: formData.fatherName,
     MotherName: formData.motherName,
-    ParentOfficeAddress: getPath(formData, 'officeAddress.address') || '',
-    ParentOfficeTel: getPath(formData, 'officeAddress.tel') || '',
-    ParentOfficeEmail: getPath(formData, 'officeAddress.email') || '',
-    ParentResidenceAddress: getPath(formData, 'residenceAddress.address') || '',
+    // Parent office address: the UI redesign dropped this section entirely
+    // (only "Present Address — Residence" remains) — always blank for new
+    // submissions. Column kept in place; see the APPLICATIONS_COLUMNS note.
+    ParentOfficeAddress: '',
+    ParentOfficeTel: '',
+    ParentOfficeEmail: '',
+    // No longer populated — the UI now collects the parent's residence
+    // address as 7 structured fields (below) instead of one free-text
+    // string. Column kept in place for existing historical rows.
+    ParentResidenceAddress: '',
     ParentResidenceTel: getPath(formData, 'residenceAddress.tel') || '',
     ParentResidenceEmail: getPath(formData, 'residenceAddress.email') || '',
-    GuardianOfficeAddress: getPath(formData, 'localGuardian.office.address') || '',
-    GuardianOfficeTel: getPath(formData, 'localGuardian.office.tel') || '',
-    GuardianOfficeEmail: getPath(formData, 'localGuardian.office.email') || '',
-    GuardianResidenceAddress: getPath(formData, 'localGuardian.residence.address') || '',
-    GuardianResidenceTel: getPath(formData, 'localGuardian.residence.tel') || '',
-    GuardianResidenceEmail: getPath(formData, 'localGuardian.residence.email') || '',
+    // Local guardian office/residence split no longer exists in the UI —
+    // always blank for new submissions. Columns kept in place; see
+    // GuardianName etc. below for what actually gets written now.
+    GuardianOfficeAddress: '',
+    GuardianOfficeTel: '',
+    GuardianOfficeEmail: '',
+    GuardianResidenceAddress: '',
+    GuardianResidenceTel: '',
+    GuardianResidenceEmail: '',
     EmergencyAddress: formData.emergencyAddress,
     EmergencyTel: formData.emergencyTel,
     StudentMobile: formData.studentMobile,
@@ -288,7 +344,32 @@ function buildApplicationRow(formData, elig, applicationId) {
     AllotmentStatus: 'Not Processed',
     AllottedRoomNo: '',
     AllottedRoommateEnrolmentNo: '',
-    WaitlistPosition: ''
+    WaitlistPosition: '',
+
+    // ---- Appended 2026-08-23, see the APPLICATIONS_COLUMNS note above ----
+    FatherPhone: formData.fatherPhone || '',
+    MotherPhone: formData.motherPhone || '',
+    ParentResidenceHouseNo: getPath(formData, 'residenceAddress.houseNo') || '',
+    ParentResidenceStreetArea: getPath(formData, 'residenceAddress.streetArea') || '',
+    ParentResidenceCity: getPath(formData, 'residenceAddress.city') || '',
+    ParentResidenceDistrict: getPath(formData, 'residenceAddress.district') || '',
+    ParentResidenceState: getPath(formData, 'residenceAddress.state') || '',
+    ParentResidencePincode: getPath(formData, 'residenceAddress.pincode') || '',
+    ParentResidenceLandmark: getPath(formData, 'residenceAddress.landmark') || '',
+    // Local guardian is entirely Optional in the current UI and has no
+    // office/residence split (and no email field) — see the validation
+    // note above. All nine paths read here mirror application.html's
+    // collectStep('guardian') exactly; keep both in sync if either changes.
+    GuardianName: getPath(formData, 'localGuardian.name') || '',
+    GuardianRelationship: getPath(formData, 'localGuardian.relationship') || '',
+    GuardianPhone: getPath(formData, 'localGuardian.phone') || '',
+    GuardianHouseNo: getPath(formData, 'localGuardian.address.houseNo') || '',
+    GuardianStreetArea: getPath(formData, 'localGuardian.address.streetArea') || '',
+    GuardianCity: getPath(formData, 'localGuardian.address.city') || '',
+    GuardianDistrict: getPath(formData, 'localGuardian.address.district') || '',
+    GuardianState: getPath(formData, 'localGuardian.address.state') || '',
+    GuardianPincode: getPath(formData, 'localGuardian.address.pincode') || '',
+    GuardianLandmark: getPath(formData, 'localGuardian.address.landmark') || ''
   };
 }
 

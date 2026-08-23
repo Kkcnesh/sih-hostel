@@ -1,158 +1,1204 @@
 <!DOCTYPE html>
 <!-- ==========================================================================
      ADMIN DASHBOARD
-     ==========================================================================
-     Minimal, API-only-so-far admin surface: view every Applications row,
-     toggle VerificationStatus per applicant, and trigger the allocation
-     engine (POST /api/runAllocation). Not linked from anywhere in the
-     student-facing nav/footer on purpose — reached only by navigating here
-     directly (/admin.html). There's no real admin login system yet, just
-     the shared ADMIN_SECRET bearer-token check every /api/admin/* endpoint
-     (and /api/runAllocation) already enforces server-side — see
-     api/_lib/adminAuth.js and SETUP.md. This page's "gate" below is that
-     same secret, typed in once per browser tab and stored in
-     sessionStorage (key hostelAdminSecret) so every subsequent call on
-     this tab can send it as an Authorization header — mirrors how the
-     student pages keep their session in sessionStorage (js/script.js's
-     SESSION_KEY), just a different key and a different shape of "session."
-
-     Deliberately does NOT use the shared callApi() from js/script.js — that
-     helper doesn't support custom headers, and every call here needs
-     "Authorization: Bearer <secret>". See adminFetch() below instead. Table
-     styles and status-badge styles live in css/stylesheet.css section 18.
      ========================================================================== -->
 <html lang="en">
+
 <head>
   <base target="_top">
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
   <title>GGSIPU Hostel Portal — Admin</title>
-  <link rel="stylesheet" href="css/stylesheet.css">
+
+  <link
+    rel="stylesheet"
+    href="css/stylesheet.css"
+  >
+
   <style>
-    #gate-view.hidden, #dashboard-view.hidden { display: none; }
-    #gate-view { max-width: 420px; margin: var(--space-6) auto 0; }
+
+    /* ==========================================================
+       ADMIN PAGE ONLY
+       ========================================================== */
+
+    #gate-view.hidden,
+    #dashboard-view.hidden {
+      display: none !important;
+    }
+
+
+    /* ==========================================================
+       LOGIN
+       ========================================================== */
+
+    .admin-login-wrapper {
+      width: 100%;
+
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+
+      padding-top: 56px;
+    }
+
+    #gate-view {
+      width: 100%;
+      max-width: 460px;
+
+      box-sizing: border-box;
+    }
+
+    #gate-view.panel {
+      padding: 36px;
+    }
+
+    .admin-login-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .admin-login-header .eyebrow {
+      margin-bottom: 6px;
+    }
+
+    .admin-login-header h1 {
+      margin: 0;
+
+      font-size: var(--text-2xl);
+      line-height: 1.2;
+    }
+
+    #gate-view .field {
+      margin-bottom: 20px;
+    }
+
+    #gate-view .btn {
+      width: 100%;
+    }
+
+
+    /* ==========================================================
+       DASHBOARD
+       ========================================================== */
+
+    #dashboard-view {
+      width: 100%;
+    }
+
+
+    /* ==========================================================
+       DASHBOARD HEADER
+       ========================================================== */
+
+    .admin-dashboard-header {
+      display: flex;
+
+      justify-content: space-between;
+      align-items: flex-end;
+
+      gap: 30px;
+
+      margin-bottom: 28px;
+
+      padding: 4px 0;
+    }
+
+    .admin-dashboard-heading {
+      min-width: 0;
+    }
+
+    .admin-dashboard-title {
+      margin: 4px 0 0;
+
+      font-size: 30px;
+      line-height: 1.2;
+
+      color: var(--text);
+    }
+
+    .admin-dashboard-subtitle {
+      margin-top: 8px;
+
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+    }
+
+
+    /* ==========================================================
+       RUN ALLOCATION BUTTON
+       ========================================================== */
+
+    #run-allocation-btn {
+  flex-shrink: 0;
+
+  min-width: 170px;
+  min-height: 44px;
+
+  padding: 11px 22px;
+
+  border: 1px solid #6B2525 !important;
+  border-radius: 3px;
+
+  background: #6B2525 !important;
+  color: #fff !important;
+
+  font-weight: 700;
+  cursor: pointer;
+
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+#run-allocation-btn:hover:not(:disabled) {
+  background: #7D2C2C !important;
+  border-color: #8F3535 !important;
+
+  transform: scale(1.04);
+
+  box-shadow:
+    0 0 6px rgba(107, 37, 37, 0.95),
+    0 0 16px rgba(107, 37, 37, 0.65),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+
+  color: #fff !important;
+}
+
+#run-allocation-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+#run-allocation-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+  box-shadow: none;
+}
+
+
+    /* ==========================================================
+       APPLICATION CARD
+       ========================================================== */
+
+    .admin-applications-card {
+      width: 100%;
+
+      background: var(--surface);
+
+      border: 1px solid #D4D4D4;
+      border-radius: 3px;
+
+      overflow: hidden;
+
+      box-shadow:
+        0 8px 18px rgba(0, 0, 0, 0.04);
+    }
+
+
+    /* ==========================================================
+       CARD HEADER
+       ========================================================== */
+
+    .admin-applications-header {
+      display: flex;
+
+      justify-content: space-between;
+      align-items: center;
+
+      gap: 20px;
+
+      padding: 22px 24px;
+
+      background: #FAFAFA;
+
+      border-bottom: 1px solid var(--border);
+    }
+
+    .admin-applications-title {
+      font-size: var(--text-lg);
+      font-weight: 700;
+
+      color: var(--text);
+    }
+
+    .admin-applications-count {
+      margin-top: 3px;
+
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+
+    /* ==========================================================
+       TABLE
+       ========================================================== */
+
+    .admin-table-wrap {
+      width: 100%;
+
+      overflow-x: auto;
+
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-table {
+      width: 100%;
+
+      min-width: 920px;
+
+      border-collapse: collapse;
+      border-spacing: 0;
+
+      table-layout: fixed;
+
+      background: var(--surface);
+    }
+
+
+    /* ==========================================================
+       COLUMN WIDTHS
+       ========================================================== */
+
+    .admin-table th:nth-child(1),
+    .admin-table td:nth-child(1) {
+      width: 145px;
+    }
+
+    .admin-table th:nth-child(2),
+    .admin-table td:nth-child(2) {
+      width: 190px;
+    }
+
+    .admin-table th:nth-child(3),
+    .admin-table td:nth-child(3) {
+      width: 170px;
+    }
+
+    .admin-table th:nth-child(4),
+    .admin-table td:nth-child(4) {
+      width: 150px;
+    }
+
+    .admin-table th:nth-child(5),
+    .admin-table td:nth-child(5) {
+      width: 155px;
+    }
+
+    .admin-table th:nth-child(6),
+    .admin-table td:nth-child(6) {
+      width: 110px;
+    }
+
+    .admin-table th:nth-child(7),
+    .admin-table td:nth-child(7) {
+      width: 125px;
+    }
+
+
+    /* ==========================================================
+       TABLE HEADER
+       ========================================================== */
+
+    .admin-table thead {
+      background: #6B2525 !important;
+    }
+
+    .admin-table thead th {
+      padding: 14px 16px;
+
+      border-right:
+        1px solid rgba(255, 255, 255, 0.16);
+
+      color: #fff !important;
+
+      background: #6B2525 !important;
+
+      font-size: 12px;
+      font-weight: 700;
+
+      line-height: 1.3;
+
+      text-align: left;
+
+      white-space: nowrap;
+    }
+
+    .admin-table thead th:last-child {
+      border-right: none;
+    }
+
+
+    /* ==========================================================
+       TABLE BODY
+       ========================================================== */
+
+    .admin-table tbody td {
+      padding: 16px;
+
+      border-right: 1px solid #E2E2E2;
+      border-bottom: 1px solid #DADADA;
+
+      color: var(--text);
+
+      font-size: 14px;
+
+      vertical-align: middle;
+
+      line-height: 1.35;
+    }
+
+    .admin-table tbody td:last-child {
+      border-right: none;
+    }
+
+    .admin-table tbody tr {
+      background: #fff;
+
+      transition:
+        background-color 120ms ease;
+    }
+
+    .admin-table tbody tr:nth-child(even) {
+      background: #FAFAFA;
+    }
+
+    .admin-table tbody tr:hover {
+      background: #F4F7FB;
+    }
+
+    .admin-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+
+    /* ==========================================================
+       TABLE CONTENT
+       ========================================================== */
+
+    .admin-table tbody td:first-child {
+      font-weight: 700;
+
+      color: var(--navy);
+
+      white-space: nowrap;
+    }
+
+    .admin-table tbody td:nth-child(2) {
+      font-weight: 600;
+    }
+
+    .admin-table tbody td:nth-child(3) {
+      color: var(--text-body);
+    }
+
+    .admin-empty-value {
+      color: #A0A0A0 !important;
+    }
+
+
+    /* ==========================================================
+       STATUS BADGES
+       ========================================================== */
+
+    .admin-status-badge {
+      display: inline-flex;
+
+      align-items: center;
+      justify-content: center;
+
+      min-width: 108px;
+
+      padding: 7px 12px;
+
+      border: 1px solid;
+
+      border-radius: 3px;
+
+      font-size: 12px;
+      font-weight: 700;
+
+      line-height: 1.2;
+
+      white-space: nowrap;
+    }
+
+    .admin-status-badge--verified {
+      color: #216B37;
+
+      background: #EAF6ED;
+
+      border-color: #A7D5B3;
+    }
+
+    .admin-status-badge--pending {
+      color: #8A5700;
+
+      background: #FFF4DD;
+
+      border-color: #E8C982;
+    }
+
+    .admin-status-badge--allotted {
+      color: #216B37;
+
+      background: #EAF6ED;
+
+      border-color: #A7D5B3;
+    }
+
+    .admin-status-badge--waitlisted {
+      color: #8A5700;
+
+      background: #FFF4DD;
+
+      border-color: #E8C982;
+    }
+
+    .admin-status-badge--not-processed {
+      color: #666;
+
+      background: #F3F3F3;
+
+      border-color: #D0D0D0;
+    }
+
+
+    /* ==========================================================
+       VERIFICATION BUTTON
+       ========================================================== */
+
+    .admin-verification-button {
+      appearance: none;
+
+      display: inline-flex;
+
+      align-items: center;
+      justify-content: center;
+
+      min-width: 108px;
+
+      padding: 7px 12px;
+
+      border: 1px solid;
+
+      border-radius: 3px;
+
+      font-size: 12px;
+      font-weight: 700;
+
+      line-height: 1.2;
+
+      cursor: pointer;
+
+      transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        transform 120ms ease;
+    }
+
+    .admin-verification-button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .admin-verification-button:disabled {
+      cursor: wait;
+      opacity: 0.55;
+    }
+
+    .admin-verification-button--verified {
+      color: #216B37;
+
+      background: #EAF6ED;
+
+      border-color: #A7D5B3;
+    }
+
+    .admin-verification-button--verified:hover:not(:disabled) {
+      background: #DDF1E2;
+    }
+
+    .admin-verification-button--pending {
+      color: #8A5700;
+
+      background: #FFF4DD;
+
+      border-color: #E8C982;
+    }
+
+    .admin-verification-button--pending:hover:not(:disabled) {
+      background: #FFEDC5;
+    }
+
+
+    /* ==========================================================
+       EMPTY TABLE
+       ========================================================== */
+
+    .admin-table-empty {
+      padding: 48px 24px !important;
+
+      text-align: center;
+
+      color: var(--text-muted) !important;
+
+      background: #fff !important;
+    }
+
+
+    /* ==========================================================
+       ALERT
+       ========================================================== */
+
+    #dashboard-view > #alert-root {
+      margin-bottom: 20px;
+    }
+
+    #dashboard-view > #alert-root:empty {
+      display: none;
+    }
+
+
+    /* ==========================================================
+       MOBILE
+       ========================================================== */
+
+    @media (max-width: 860px) {
+
+      .admin-dashboard-header {
+        align-items: stretch;
+
+        flex-direction: column;
+      }
+
+      #run-allocation-btn {
+        width: 100%;
+      }
+
+      .admin-applications-header {
+        align-items: flex-start;
+
+        flex-direction: column;
+      }
+
+    }
+
+
+    @media (max-width: 520px) {
+
+      .admin-login-wrapper {
+        padding-top: 32px;
+      }
+
+      #gate-view.panel {
+        padding: 28px 22px;
+      }
+
+      .admin-dashboard-title {
+        font-size: 25px;
+      }
+
+      .admin-applications-header {
+        padding: 18px;
+      }
+
+    }
+
+
+    /* ==========================================================
+       FINAL ADMIN RED OVERRIDE
+       ========================================================== */
+
+    #dashboard-view #run-allocation-btn {
+      background: #6B2525 !important;
+      border: 1px solid #6B2525 !important;
+      color: #FFFFFF !important;
+    }
+
+    #dashboard-view #run-allocation-btn:hover:not(:disabled) {
+      background: #6B2525 !important;
+      border-color: #6B2525 !important;
+      color: #FFFFFF !important;
+    }
+
+    #dashboard-view .admin-table thead {
+      background: #6B2525 !important;
+    }
+
+    #dashboard-view .admin-table thead th {
+      background: #6B2525 !important;
+      color: #FFFFFF !important;
+    }
+
   </style>
+
 </head>
+
+
 <body>
+
   <div class="page">
-    <header class="site-header" id="site-header"></header>
+
+
+    <!-- ========================================================
+         HEADER
+         ======================================================== -->
+
+    <header
+      class="site-header"
+      id="site-header"
+    ></header>
+
+
+    <!-- ========================================================
+         MAIN
+         ======================================================== -->
 
     <main>
-      <div class="container">
-        <p class="eyebrow">Admin</p>
-        <h1 style="font-size: var(--text-2xl); margin: 4px 0 var(--space-5);">Hostel Applications</h1>
 
-        <div id="gate-view" class="panel">
-          <div>
-            <p class="panel__title" style="font-size: var(--text-lg);">Enter admin secret</p>
-            <p class="panel__hint">Matches the ADMIN_SECRET environment variable set in Vercel. See SETUP.md.</p>
+      <div class="container">
+
+
+        <!-- ====================================================
+             ADMIN LOGIN
+             ==================================================== -->
+
+        <div class="admin-login-wrapper">
+
+          <div
+            id="gate-view"
+            class="panel"
+          >
+
+            <div class="admin-login-header">
+
+              <p class="eyebrow">
+                Admin
+              </p>
+
+              <h1>
+                Hostel Applications
+              </h1>
+
+            </div>
+
+
+            <div class="field">
+
+              <label
+                class="field__label"
+                for="admin-secret-input"
+              >
+                Admin Key
+              </label>
+
+              <input
+                class="field__control"
+                type="password"
+                id="admin-secret-input"
+                autocomplete="off"
+              >
+
+              <p
+                class="field__error"
+                id="gate-error"
+                style="display:none;"
+              ></p>
+
+            </div>
+
+
+            <button
+              type="button"
+              class="btn btn--primary"
+              id="gate-submit-btn"
+            >
+              Enter
+            </button>
+
           </div>
-          <div class="field">
-            <label class="field__label" for="admin-secret-input">Admin Secret</label>
-            <input class="field__control" type="password" id="admin-secret-input" autocomplete="off">
-            <p class="field__error" id="gate-error" style="display:block;"></p>
-          </div>
-          <button type="button" class="btn btn--primary" id="gate-submit-btn">Enter</button>
+
         </div>
 
-        <div id="dashboard-view" class="stack hidden">
+
+        <!-- ====================================================
+             DASHBOARD
+             ==================================================== -->
+
+        <div
+          id="dashboard-view"
+          class="stack hidden"
+        >
+
+
+          <!-- Alert -->
+
           <div id="alert-root"></div>
 
-          <div class="admin-toolbar">
-            <button type="button" class="btn btn--navy" id="run-allocation-btn">Run Allocation</button>
-            <span class="text-muted" id="applications-count"></span>
+
+          <!-- ==================================================
+               DASHBOARD HEADER
+               ================================================== -->
+
+          <div class="admin-dashboard-header">
+
+            <div class="admin-dashboard-heading">
+
+              <p class="eyebrow">
+                Admin
+              </p>
+
+              <h1 class="admin-dashboard-title">
+                Hostel Applications
+              </h1>
+
+              <p class="admin-dashboard-subtitle">
+                Review applications and manage hostel allocation.
+              </p>
+
+            </div>
+
+
+            <button
+              type="button"
+              id="run-allocation-btn"
+            >
+              Run Allocation
+            </button>
+
           </div>
 
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Enrolment No.</th>
-                  <th>Name</th>
-                  <th>Hostel / Room Type</th>
-                  <th>Verification</th>
-                  <th>Allotment</th>
-                  <th>Room No.</th>
-                  <th>Waitlist Pos.</th>
-                </tr>
-              </thead>
-              <tbody id="applications-tbody"></tbody>
-            </table>
-          </div>
+
+          <!-- ==================================================
+               APPLICATIONS CARD
+               ================================================== -->
+
+          <section class="admin-applications-card">
+
+
+            <!-- Card heading -->
+
+            <div class="admin-applications-header">
+
+              <div>
+
+                <div class="admin-applications-title">
+                  Applications
+                </div>
+
+                <div
+                  class="admin-applications-count"
+                  id="applications-count"
+                ></div>
+
+              </div>
+
+            </div>
+
+
+            <!-- Table -->
+
+            <div class="admin-table-wrap">
+
+              <table class="admin-table">
+
+                <thead>
+
+                  <tr>
+
+                    <th>
+                      Enrolment No.
+                    </th>
+
+                    <th>
+                      Name
+                    </th>
+
+                    <th>
+                      Hostel / Room Type
+                    </th>
+
+                    <th>
+                      Verification
+                    </th>
+
+                    <th>
+                      Allotment
+                    </th>
+
+                    <th>
+                      Room No.
+                    </th>
+
+                    <th>
+                      Waitlist Pos.
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+
+                <tbody
+                  id="applications-tbody"
+                ></tbody>
+
+              </table>
+
+            </div>
+
+          </section>
+
+
         </div>
 
       </div>
+
     </main>
 
-    <footer class="site-footer" id="site-footer"></footer>
+
+    <!-- ========================================================
+         FOOTER
+         ======================================================== -->
+
+    <footer
+      class="site-footer"
+      id="site-footer"
+    ></footer>
+
+
   </div>
 
+
+  <!-- ==========================================================
+       SHARED SCRIPT
+       ========================================================== -->
+
   <script src="js/script.js"></script>
+
+
   <script>
-    /* ==========================================================================
-       PAGE GLUE — admin secret gate, then the dashboard
-       ========================================================================== */
-    renderSiteHeader(document.getElementById('site-header'));
-    renderSiteFooter(document.getElementById('site-footer'));
 
-    const gateView = document.getElementById('gate-view');
-    const dashboardView = document.getElementById('dashboard-view');
-    const alertRoot = document.getElementById('alert-root');
+    /* ==========================================================
+       HEADER
+       ========================================================== */
 
-    const ADMIN_SECRET_KEY = 'hostelAdminSecret';
-    const getAdminSecret = () => sessionStorage.getItem(ADMIN_SECRET_KEY) || '';
-    const setAdminSecret = (v) => sessionStorage.setItem(ADMIN_SECRET_KEY, v);
-    const clearAdminSecret = () => sessionStorage.removeItem(ADMIN_SECRET_KEY);
+    renderSiteHeader(
+      document.getElementById(
+        'site-header'
+      )
+    );
 
-    /** Like callApi() in js/script.js, but adds the Authorization header every /api/admin/* + /api/runAllocation call needs, and surfaces the server's real {error} message on a non-2xx response instead of a generic "Request failed (status)". */
-    function adminFetch(endpoint, payload) {
-      return fetch(`/api/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAdminSecret()}` },
-        body: JSON.stringify(payload || {})
-      }).then(async (res) => {
-        const body = await res.json().catch(() => null);
-        if (!res.ok) throw new Error((body && body.error) || `Request failed (${res.status})`);
-        return body;
-      });
+
+    /*
+     * ADMIN-ONLY NAVBAR
+     *
+     * Student pages are untouched.
+     */
+
+    const adminNav =
+      document.querySelector(
+        '.site-nav'
+      );
+
+
+    if (adminNav) {
+
+      adminNav.innerHTML = `
+
+        <a
+          href="${pageUrl('login')}"
+        >
+          Home
+        </a>
+
+        <a
+          href="admin.html"
+          aria-current="page"
+        >
+          Admin Login
+        </a>
+
+      `;
+
     }
 
-    let applications = []; // last-loaded list; toggle handlers mutate this in place on confirmed success only
 
-    function showGate(message) {
-      dashboardView.classList.add('hidden');
-      gateView.classList.remove('hidden');
-      document.getElementById('gate-error').textContent = message || '';
+    renderSiteFooter(
+      document.getElementById(
+        'site-footer'
+      )
+    );
+
+
+    /* ==========================================================
+       ELEMENTS
+       ========================================================== */
+
+    const gateView =
+      document.getElementById(
+        'gate-view'
+      );
+
+
+    const dashboardView =
+      document.getElementById(
+        'dashboard-view'
+      );
+
+
+    const alertRoot =
+      document.getElementById(
+        'alert-root'
+      );
+
+
+    /* ==========================================================
+       ADMIN SESSION
+       ========================================================== */
+
+    const ADMIN_SECRET_KEY =
+      'hostelAdminSecret';
+
+
+    const getAdminSecret = () =>
+      sessionStorage.getItem(
+        ADMIN_SECRET_KEY
+      ) || '';
+
+
+    const setAdminSecret = (
+      value
+    ) =>
+      sessionStorage.setItem(
+        ADMIN_SECRET_KEY,
+        value
+      );
+
+
+    const clearAdminSecret = () =>
+      sessionStorage.removeItem(
+        ADMIN_SECRET_KEY
+      );
+
+
+    /* ==========================================================
+       API
+       ========================================================== */
+
+    function adminFetch(
+      endpoint,
+      payload
+    ) {
+
+      return fetch(
+        `/api/${endpoint}`,
+        {
+
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json',
+
+            Authorization:
+              `Bearer ${getAdminSecret()}`
+          },
+
+          body:
+            JSON.stringify(
+              payload || {}
+            )
+
+        }
+      )
+
+      .then(
+        async (res) => {
+
+          const body =
+            await res
+              .json()
+              .catch(
+                () => null
+              );
+
+
+          if (!res.ok) {
+
+            throw new Error(
+              (body && body.error) ||
+              `Request failed (${res.status})`
+            );
+
+          }
+
+
+          return body;
+
+        }
+      );
+
     }
+
+
+    /* ==========================================================
+       STATE
+       ========================================================== */
+
+    let applications = [];
+
+
+    /* ==========================================================
+       SHOW LOGIN
+       ========================================================== */
+
+    function showGate(
+      message
+    ) {
+
+      dashboardView.classList.add(
+        'hidden'
+      );
+
+
+      gateView.classList.remove(
+        'hidden'
+      );
+
+
+      const errorEl =
+        document.getElementById(
+          'gate-error'
+        );
+
+
+      if (message) {
+
+        errorEl.textContent =
+          message;
+
+        errorEl.style.display =
+          'block';
+
+      } else {
+
+        errorEl.textContent =
+          '';
+
+        errorEl.style.display =
+          'none';
+
+      }
+
+    }
+
+
+    /* ==========================================================
+       SHOW DASHBOARD
+       ========================================================== */
 
     function showDashboard() {
-      gateView.classList.add('hidden');
-      dashboardView.classList.remove('hidden');
+
+      gateView.classList.add(
+        'hidden'
+      );
+
+
+      dashboardView.classList.remove(
+        'hidden'
+      );
+
     }
+
+
+    /* ==========================================================
+       LOAD REAL APPLICATIONS
+       ========================================================== */
 
     function loadApplications() {
-      return adminFetch('admin/listApplications', {}).then((result) => {
-        applications = result.applications;
-        showDashboard();
-        renderTable();
-      });
+
+      return adminFetch(
+        'admin/listApplications',
+        {}
+      )
+
+      .then(
+        (result) => {
+
+          applications =
+            result.applications;
+
+          showDashboard();
+
+          renderTable();
+
+        }
+      );
+
     }
 
-    // A secret already stored on this tab (from an earlier visit this
-    // session) is tried silently -- no need to retype it on every reload.
-    if (getAdminSecret()) {
-      loadApplications().catch((err) => {
-        clearAdminSecret();
-        showGate(err.message);
-      });
-    } else {
-      showGate();
-    }
 
-    document.getElementById('gate-submit-btn').addEventListener('click', submitGate);
-    document.getElementById('admin-secret-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submitGate(); }
-    });
+    /* ==========================================================
+       INITIAL STATE
+       ========================================================== */
+
+    clearAdminSecret();
+
+    showGate();
+
+
+    /* ==========================================================
+       LOGIN BUTTON
+       ========================================================== */
+
+    document
+      .getElementById(
+        'gate-submit-btn'
+      )
+      .addEventListener(
+        'click',
+        submitGate
+      );
+
+
+    /* ==========================================================
+       ENTER KEY
+       ========================================================== */
+
+    document
+      .getElementById(
+        'admin-secret-input'
+      )
+      .addEventListener(
+        'keydown',
+        (event) => {
+
+          if (
+            event.key ===
+            'Enter'
+          ) {
+
+            event.preventDefault();
+
+            submitGate();
+
+          }
+
+        }
+      );
+
+
+    /* ==========================================================
+       TEMPORARY LOCAL UI LOGIN
+       ========================================================== */
 
     function submitGate() {
       const value = document.getElementById('admin-secret-input').value.trim();
@@ -164,105 +1210,457 @@
       });
     }
 
-    /* ---- table rendering ---- */
-    function renderTable() {
-      document.getElementById('applications-count').textContent =
-        `${applications.length} application${applications.length === 1 ? '' : 's'}`;
 
-      const tbody = document.getElementById('applications-tbody');
-      if (applications.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-muted" style="text-align:center; padding: var(--space-6);">No applications yet.</td></tr>`;
+    /* ==========================================================
+       TABLE RENDERING
+       ========================================================== */
+
+    function renderTable() {
+
+      const countEl =
+        document.getElementById(
+          'applications-count'
+        );
+
+
+      countEl.textContent =
+        `${applications.length} application${
+          applications.length === 1
+            ? ''
+            : 's'
+        }`;
+
+
+      const tbody =
+        document.getElementById(
+          'applications-tbody'
+        );
+
+
+      if (
+        applications.length === 0
+      ) {
+
+        tbody.innerHTML = `
+
+          <tr>
+
+            <td
+              colspan="7"
+              class="admin-table-empty"
+            >
+              No applications yet.
+            </td>
+
+          </tr>
+
+        `;
+
+        return;
+
+      }
+
+
+      tbody.innerHTML =
+        applications
+          .map(
+            (app) => `
+
+              <tr
+                data-application-id="${app.applicationId}"
+              >
+
+                <td>
+                  ${app.enrolmentNo}
+                </td>
+
+
+                <td>
+                  ${app.name}
+                </td>
+
+
+                <td>
+                  ${app.hostel}
+                  &nbsp;&middot;&nbsp;
+                  ${app.roomType}
+                </td>
+
+
+                <td>
+                  ${verificationBadgeHtml(
+                    app
+                  )}
+                </td>
+
+
+                <td>
+                  ${allotmentBadgeHtml(
+                    app
+                  )}
+                </td>
+
+
+                <td>
+                  ${
+                    app.allottedRoomNo
+                      ? app.allottedRoomNo
+                      : '<span class="admin-empty-value">—</span>'
+                  }
+                </td>
+
+
+                <td>
+                  ${
+                    app.waitlistPosition
+                      ? app.waitlistPosition
+                      : '<span class="admin-empty-value">—</span>'
+                  }
+                </td>
+
+              </tr>
+
+            `
+          )
+          .join('');
+
+
+      tbody
+        .querySelectorAll(
+          '[data-role="verify-toggle"]'
+        )
+        .forEach(
+          (btn) => {
+
+            btn.addEventListener(
+              'click',
+              () =>
+                onToggleVerification(
+                  btn
+                    .closest('tr')
+                    .dataset
+                    .applicationId
+                )
+            );
+
+          }
+        );
+
+    }
+
+
+    /* ==========================================================
+       VERIFICATION BADGE
+       ========================================================== */
+
+    function verificationBadgeHtml(
+      app
+    ) {
+
+      const isVerified =
+        app.verificationStatus ===
+        'Verified';
+
+
+      return `
+
+        <button
+
+          type="button"
+
+          class="
+            admin-verification-button
+            ${
+              isVerified
+                ? 'admin-verification-button--verified'
+                : 'admin-verification-button--pending'
+            }
+          "
+
+          data-role="verify-toggle"
+
+        >
+
+          ${
+            isVerified
+              ? '✓ Verified'
+              : 'Pending'
+          }
+
+        </button>
+
+      `;
+
+    }
+
+
+    /* ==========================================================
+       ALLOTMENT BADGE
+       ========================================================== */
+
+    function allotmentBadgeHtml(
+      app
+    ) {
+
+      let className =
+        'admin-status-badge--not-processed';
+
+
+      if (
+        app.allotmentStatus ===
+        'Allotted'
+      ) {
+
+        className =
+          'admin-status-badge--allotted';
+
+      }
+
+      else if (
+        app.allotmentStatus ===
+        'Waitlisted'
+      ) {
+
+        className =
+          'admin-status-badge--waitlisted';
+
+      }
+
+
+      return `
+
+        <span
+          class="
+            admin-status-badge
+            ${className}
+          "
+        >
+
+          ${app.allotmentStatus}
+
+        </span>
+
+      `;
+
+    }
+
+
+    /* ==========================================================
+       VERIFICATION TOGGLE
+       ========================================================== */
+
+    function onToggleVerification(
+      applicationId
+    ) {
+
+      const app =
+        applications.find(
+          (a) =>
+            a.applicationId ===
+            applicationId
+        );
+
+
+      if (!app) {
         return;
       }
 
-      tbody.innerHTML = applications.map((app) => `
-        <tr data-application-id="${app.applicationId}">
-          <td>${app.enrolmentNo}</td>
-          <td>${app.name}</td>
-          <td>${app.hostel} &middot; ${app.roomType}</td>
-          <td>${verificationBadgeHtml(app)}</td>
-          <td>${allotmentBadgeHtml(app)}</td>
-          <td>${app.allottedRoomNo || '—'}</td>
-          <td>${app.waitlistPosition || '—'}</td>
-        </tr>
-      `).join('');
 
-      tbody.querySelectorAll('[data-role="verify-toggle"]').forEach((btn) => {
-        btn.addEventListener('click', () => onToggleVerification(btn.closest('tr').dataset.applicationId));
-      });
-    }
+      const row =
+        document.querySelector(
+          `tr[data-application-id="${CSS.escape(
+            applicationId
+          )}"]`
+        );
 
-    /* Filled pill, tinted per state -- this column is interactive (a toggle button), distinct from Allotment's read-only outline pills below. */
-    function verificationBadgeHtml(app) {
-      const isVerified = app.verificationStatus === 'Verified';
-      return `<button type="button" class="status-badge status-badge--toggle ${isVerified ? 'status-badge--verified' : 'status-badge--pending'}" data-role="verify-toggle">${isVerified ? icon('check') + ' Verified' : 'Pending'}</button>`;
-    }
 
-    /* Read-only -- AllotmentStatus is set only by the allocation engine, never toggled by hand here. */
-    function allotmentBadgeHtml(app) {
-      const cls = app.allotmentStatus === 'Allotted' ? 'status-badge--allotted'
-        : app.allotmentStatus === 'Waitlisted' ? 'status-badge--waitlisted'
-        : 'status-badge--not-processed';
-      return `<span class="status-badge ${cls}">${app.allotmentStatus}</span>`;
-    }
+      const btn =
+        row?.querySelector(
+          '[data-role="verify-toggle"]'
+        );
 
-    /* ---- verification toggle ----
-       Not optimistic: the button just shows a disabled "Saving..." state
-       while the request is in flight, and applications[i].verificationStatus
-       is only mutated after a confirmed 200 response. On failure nothing
-       was ever mutated, so re-rendering naturally restores the original
-       label -- that's the "revert" the failure path needs, without a
-       separate rollback code path to keep in sync with the success path.
-       ========================================================================== */
-    function onToggleVerification(applicationId) {
-      const app = applications.find((a) => a.applicationId === applicationId);
-      if (!app) return;
 
-      const row = document.querySelector(`tr[data-application-id="${CSS.escape(applicationId)}"]`);
-      const btn = row?.querySelector('[data-role="verify-toggle"]');
-      if (!btn || btn.disabled) return; // a request for this row is already in flight -- ignore the double-click
+      if (
+        !btn ||
+        btn.disabled
+      ) {
 
-      const newStatus = app.verificationStatus === 'Verified' ? 'Pending' : 'Verified';
-      btn.disabled = true;
-      btn.textContent = 'Saving…';
+        return;
 
-      adminFetch('admin/updateVerification', { applicationId, verificationStatus: newStatus })
-        .then((result) => {
-          app.verificationStatus = result.verificationStatus;
+      }
+
+
+      const newStatus =
+        app.verificationStatus ===
+        'Verified'
+          ? 'Pending'
+          : 'Verified';
+
+
+      btn.disabled =
+        true;
+
+
+      btn.textContent =
+        'Saving…';
+
+
+      adminFetch(
+        'admin/updateVerification',
+        {
+
+          applicationId,
+
+          verificationStatus:
+            newStatus
+
+        }
+      )
+
+      .then(
+        (result) => {
+
+          app.verificationStatus =
+            result.verificationStatus;
+
           renderTable();
-        })
-        .catch((err) => {
-          renderTable(); // app.verificationStatus untouched -- restores the pre-click label
-          showAlert(alertRoot, { title: 'Could not update verification status', message: err.message, tone: 'danger' });
-        });
+
+        }
+      )
+
+      .catch(
+        (err) => {
+
+          renderTable();
+
+
+          showAlert(
+            alertRoot,
+            {
+
+              title:
+                'Could not update verification status',
+
+              message:
+                err.message,
+
+              tone:
+                'danger'
+
+            }
+          );
+
+        }
+      );
+
     }
 
-    /* ---- run allocation ---- */
-    document.getElementById('run-allocation-btn').addEventListener('click', runAllocationNow);
+
+    /* ==========================================================
+       RUN ALLOCATION
+       ========================================================== */
+
+    document
+      .getElementById(
+        'run-allocation-btn'
+      )
+      .addEventListener(
+        'click',
+        runAllocationNow
+      );
+
 
     function runAllocationNow() {
-      const btn = document.getElementById('run-allocation-btn');
-      btn.disabled = true;
-      btn.textContent = 'Running…';
-      clearAlert(alertRoot);
 
-      adminFetch('runAllocation', {})
-        .then((result) => {
-          showAlert(alertRoot, {
-            title: 'Allocation run complete',
-            message: `${result.summary.totalAllotted} allotted, ${result.summary.totalWaitlisted} waitlisted (${result.summary.totalCandidates} candidates processed this run).`,
-            tone: 'info'
-          });
-          return loadApplications(); // refresh the table so newly-decided rows show immediately
-        })
-        .catch((err) => {
-          showAlert(alertRoot, { title: 'Allocation run failed', message: err.message, tone: 'danger' });
-        })
-        .finally(() => {
-          btn.disabled = false;
-          btn.textContent = 'Run Allocation';
-        });
+      const btn =
+        document.getElementById(
+          'run-allocation-btn'
+        );
+
+
+      btn.disabled =
+        true;
+
+
+      btn.textContent =
+        'Running…';
+
+
+      clearAlert(
+        alertRoot
+      );
+
+
+      adminFetch(
+        'runAllocation',
+        {}
+      )
+
+      .then(
+        (result) => {
+
+          showAlert(
+            alertRoot,
+            {
+
+              title:
+                'Allocation run complete',
+
+              message:
+                `${result.summary.totalAllotted} allotted, ` +
+                `${result.summary.totalWaitlisted} waitlisted ` +
+                `(${result.summary.totalCandidates} candidates processed this run).`,
+
+              tone:
+                'info'
+
+            }
+          );
+
+
+          return loadApplications();
+
+        }
+      )
+
+      .catch(
+        (err) => {
+
+          showAlert(
+            alertRoot,
+            {
+
+              title:
+                'Allocation run failed',
+
+              message:
+                err.message,
+
+              tone:
+                'danger'
+
+            }
+          );
+
+        }
+      )
+
+      .finally(
+        () => {
+
+          btn.disabled =
+            false;
+
+          btn.textContent =
+            'Run Allocation';
+
+        }
+      );
+
     }
+
   </script>
+
 </body>
+
 </html>

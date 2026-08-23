@@ -22,6 +22,9 @@
     .login-panel__title { font-size: var(--text-2xl); margin-top: var(--space-2); }
     .login-panel__subtitle { color: var(--text-muted); margin-top: 4px; margin-bottom: var(--space-2); }
     .help-line { text-align: center; font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-5); }
+    #login-submit {
+  margin-top: 18px;
+}
     #welcome-view.hidden, #login-view.hidden { display: none; }
   </style>
 </head>
@@ -49,16 +52,21 @@
             <div id="login-form" class="stack">
               <div class="field" id="field-enrolment">
                 <label class="field__label" for="enrolmentNo">
-                  Enrolment Number <span class="field__tag field__tag--required">Required</span>
+                  Enrolment Number <span class="field__required">*</span>
                 </label>
-                <input class="field__control" type="text" id="enrolmentNo" name="enrolmentNo"
-                       inputmode="numeric" placeholder="e.g. 05114802722" autocomplete="off">
+                <input class="field__control"
+       type="text"
+       id="enrolmentNo"
+       name="enrolmentNo"
+       inputmode="numeric"
+       placeholder="e.g. 05114802722"
+       autocomplete="off">
                 <p class="field__error"></p>
               </div>
 
               <div class="field" id="field-dob">
                 <label class="field__label" for="dob">
-                  Date of Birth <span class="field__tag field__tag--required">Required</span>
+                  Date of Birth <span class="field__required">*</span>
                 </label>
                 <input class="field__control" type="date" id="dob">
                 <p class="field__error"></p>
@@ -98,10 +106,9 @@
     const alertRoot = document.getElementById('alert-root');
     const enrolmentInput = document.getElementById('enrolmentNo');
     const dobInput = document.getElementById('dob');
+    
 
     function attemptLogin() {
-      clearAlert(alertRoot);
-
       const enrolmentField = document.getElementById('field-enrolment');
       const dobField = document.getElementById('field-dob');
       const enrolmentNo = document.getElementById('enrolmentNo').value;

@@ -21,6 +21,14 @@
   <title>GGSIPU Hostel Portal — Status</title>
   <link rel="stylesheet" href="css/stylesheet.css">
   <style>
+
+#status-root {
+  width: 100%;
+  max-width: 590px;
+  margin: 0 auto;
+  padding-top: var(--space-6);
+}
+
     .corridor-status-line { text-align: center; font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-4); }
   </style>
 </head>
@@ -29,13 +37,8 @@
     <header class="site-header" id="site-header"></header>
 
     <main>
-      <div class="container container--narrow">
-        <p class="eyebrow">Application Status</p>
-        <h1 style="font-size: var(--text-2xl); margin: 4px 0 var(--space-5);">Where things stand</h1>
-
-        <div id="status-root" class="stack"><!-- populated by JS --></div>
-      </div>
-    </main>
+  <div id="status-root" class="stack"><!-- populated by JS --></div>
+</main>
 
     <footer class="site-footer" id="site-footer"></footer>
   </div>

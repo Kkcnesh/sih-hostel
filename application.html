@@ -20,10 +20,196 @@
   <title>GGSIPU Hostel Portal — Application</title>
   <link rel="stylesheet" href="css/stylesheet.css">
   <style>
-    .step-section { display: none; }
-    .step-section.active { display: block; }
-    #confirm-view.hidden, #gate-view.hidden { display: none; }
-  </style>
+  .step-section { display: none; }
+  .step-section.active { display: block; }
+  #confirm-view.hidden, #gate-view.hidden { display: none; }
+
+  /* ==========================================================
+     APPLICATION WIZARD - LEFT VERTICAL STEP NAVIGATION
+     ========================================================== */
+
+  /* Give the application enough horizontal room for sidebar + form */
+  .container--narrow {
+    max-width: 1000px;
+  }
+
+  /* Header stays across the full width */
+  #wizard-view {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  #step-eyebrow,
+  #step-title {
+    grid-column: 1 / -1;
+  }
+
+  /* Put the step navigation on the left */
+  #step-nav {
+    grid-column: 1;
+    grid-row: 3 / span 2;
+    margin-bottom: 0;
+    align-self: start;
+
+    display: flex;
+    flex-direction: column;
+
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  /* Each step becomes a vertical item */
+.step-nav__item {
+  width: 100%;
+  flex: none;
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+
+  padding: 14px 12px;
+
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Active step circle */
+.step-nav__item--active .step-nav__num {
+  background: #6b2525;
+  border-color: #6b2525;
+  color: #ffffff;
+}
+
+.step-nav__item:last-child {
+  border-bottom: none;
+}
+
+/* ==========================================================
+   STEP 1 - FINAL SPACING
+   ========================================================== */
+
+/* Upper form rows stay clean and consistent */
+#wizard-form .field-row {
+  margin-bottom: 12px;
+}
+
+/* Normal fields */
+#wizard-form > .field {
+  margin-bottom: 12px;
+}
+
+/* Labels */
+#wizard-form .field__label {
+  margin-bottom: 6px;
+}
+
+/* Domicile / radio section */
+#wizard-form fieldset.field {
+  margin-bottom: 10px;
+}
+
+#wizard-form .radio-group {
+  gap: 24px;
+  margin-top: 6px;
+}
+
+/* Reservation Category */
+#field-reservationCategory {
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+
+/* Extra-Curricular */
+#field-extraCurricular {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+/* Textarea */
+#extraCurricular {
+  min-height: 90px;
+}
+
+/* Next button */
+#wizard-form .form-actions {
+  margin-top: 18px;
+}
+  
+#wizard-form input[type="radio"]:checked {
+  accent-color: #6b2525;
+}
+
+#next-btn {
+  background: #6b2525;
+  border-color: #6b2525;
+  color: #fff;
+  text-shadow: none;
+  box-shadow: none;
+  transform: scale(1);
+
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+#next-btn:hover:not(:disabled) {
+  background: #7a2c2c;
+  border-color: #7a2c2c;
+  color: #fff;
+  text-shadow: none;
+
+  /* neon is outside the button, not on the text */
+  box-shadow:
+    0 0 4px rgba(122, 44, 44, 0.8),
+    0 0 10px rgba(122, 44, 44, 0.45);
+
+  transform: scale(1.04);
+}
+
+
+/* =========================================================
+   FINAL APPLICATION CONFIRMATION
+   ========================================================= */
+
+#confirm-view {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+#confirm-view.hidden {
+  display: none;
+}
+
+#confirm-view .confirm-panel {
+  width: 100%;
+  max-width: 620px;
+  margin: 0;
+
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+
+  padding: 48px 40px;
+  text-align: center;
+
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+}
+
+
+
+</style>
 </head>
 <body>
   <div class="page">
@@ -50,12 +236,12 @@
             <div class="step-section active" data-step="personal">
               <div class="field-row">
                 <div class="field" id="field-fullName">
-                  <label class="field__label" for="fullName">Full Name <span class="field__tag field__tag--required">Required</span></label>
+                  <label class="field__label" for="fullName">Full Name <span class="field__required">*</span></label>
                   <input class="field__control" type="text" id="fullName">
                   <p class="field__error"></p>
                 </div>
                 <div class="field" id="field-nationality">
-                  <label class="field__label" for="nationality">Nationality <span class="field__tag field__tag--required">Required</span></label>
+                  <label class="field__label" for="nationality">Nationality <span class="field__required">*</span></label>
                   <input class="field__control" type="text" id="nationality" value="Indian">
                   <p class="field__error"></p>
                 </div>
@@ -63,32 +249,63 @@
 
               <div class="field-row">
                 <div class="field">
-                  <label class="field__label" for="dob">Date of Birth <span class="field__tag field__tag--required">Required</span></label>
+                  <label class="field__label" for="dob">Date of Birth <span class="field__required">*</span></label>
                   <input class="field__control" type="date" id="dob" disabled>
-                  <p class="field__help">From your admission record</p>
                 </div>
                 <div class="field">
-                  <label class="field__label" for="enrolmentNo">Enrolment No. <span class="field__tag field__tag--required">Required</span></label>
+                  <label class="field__label" for="enrolmentNo">Enrolment No. <span class="field__required">*</span></label>
                   <input class="field__control" type="text" id="enrolmentNo" disabled>
-                  <p class="field__help">From your admission record</p>
                 </div>
               </div>
 
+<div class="field-row">
+  <div class="field" id="field-studentMobile">
+    <label class="field__label" for="studentMobile">
+      Student Mobile Number <span class="field__required">*</span>
+    </label>
+    <input
+      class="field__control"
+      type="tel"
+      id="studentMobile"
+      name="studentMobile"
+      inputmode="numeric"
+      placeholder="Enter your mobile number"
+      autocomplete="tel"
+    >
+    <p class="field__error"></p>
+  </div>
+
+  <div class="field" id="field-studentEmail">
+    <label class="field__label" for="studentEmail">
+      Student Email <span class="field__required">*</span>
+    </label>
+    <input
+      class="field__control"
+      type="email"
+      id="studentEmail"
+      name="studentEmail"
+      placeholder="Enter your email address"
+      autocomplete="email"
+    >
+    <p class="field__error"></p>
+  </div>
+</div>
+
+
               <div class="field-row">
                 <div class="field">
-                  <label class="field__label" for="courseSchool">Course &amp; School of Study <span class="field__tag field__tag--required">Required</span></label>
+                  <label class="field__label" for="courseSchool">Course &amp; School of Study <span class="field__required">*</span></label>
                   <input class="field__control" type="text" id="courseSchool" disabled>
-                  <p class="field__help">Incorrect? Contact the Hostel Office.</p>
                 </div>
                 <div class="field" id="field-dateOfJoining">
-                  <label class="field__label" for="dateOfJoining">Date of Joining University <span class="field__tag field__tag--required">Required</span></label>
+                  <label class="field__label" for="dateOfJoining">Date of Joining University <span class="field__required">*</span></label>
                   <input class="field__control" type="date" id="dateOfJoining">
                   <p class="field__error"></p>
                 </div>
               </div>
 
               <fieldset class="field" id="field-category">
-                <legend class="field__label">Category <span class="field__tag field__tag--required">Required</span></legend>
+                <legend class="field__label">Domicile <span class="field__required">*</span></legend>
                 <div class="radio-group">
                   <label class="radio-option"><input type="radio" name="category" value="Delhi"> Delhi</label>
                   <label class="radio-option"><input type="radio" name="category" value="Outside Delhi"> Outside Delhi</label>
@@ -99,13 +316,15 @@
 
               <div class="field-row">
                 <div class="field" id="field-reservationCategory">
-                  <label class="field__label" for="reservationCategory">Reservation Category <span class="field__tag field__tag--required">Required</span></label>
+                  <label class="field__label" for="reservationCategory">Reservation Category <span class="field__required">*</span></label>
                   <select class="field__control" id="reservationCategory">
                     <option value="" selected>Select category</option>
-                    <option value="GEN">General (GEN)</option>
+                    <option value="GEN">GEN</option>
+                    <option value="OBC">OBC</option>
+                    <option value="EWS">EWS</option>
                     <option value="SC">SC</option>
                     <option value="ST">ST</option>
-                    <option value="PH">PH</option>
+                    <option value="PWD">PWD</option>
                   </select>
                   <p class="field__error"></p>
                 </div>
@@ -119,135 +338,455 @@
             </div>
 
             <!-- ============ STEP: FAMILY & CONTACT DETAILS ============ -->
-            <div class="step-section" data-step="family">
-              <div class="field-row">
-                <div class="field" id="field-fatherName">
-                  <label class="field__label" for="fatherName">Father's Name <span class="field__tag field__tag--required">Required</span></label>
-                  <input class="field__control" type="text" id="fatherName">
-                  <p class="field__error"></p>
-                </div>
-                <div class="field" id="field-motherName">
-                  <label class="field__label" for="motherName">Mother's Name <span class="field__tag field__tag--required">Required</span></label>
-                  <input class="field__control" type="text" id="motherName">
-                  <p class="field__error"></p>
-                </div>
-              </div>
+<!-- ============ STEP: FAMILY & CONTACT DETAILS ============ -->
+<div class="step-section" data-step="family">
 
-              <div class="subgroup">
-                <p class="subgroup__title">Present Address — Residence</p>
-                <div class="field" id="field-resAddress">
-                  <label class="field__label" for="resAddress">Address <span class="field__tag field__tag--required">Required</span></label>
-                  <textarea class="field__control" id="resAddress" rows="2"></textarea>
-                  <p class="field__error"></p>
-                </div>
-                <div class="field-row">
-                  <div class="field" id="field-resTel">
-                    <label class="field__label" for="resTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
-                    <input class="field__control" type="tel" id="resTel">
-                    <p class="field__error"></p>
-                  </div>
-                  <div class="field" id="field-resEmail">
-                    <label class="field__label" for="resEmail">Email <span class="field__tag field__tag--required">Required</span></label>
-                    <input class="field__control" type="email" id="resEmail">
-                    <p class="field__error"></p>
-                  </div>
-                </div>
-              </div>
+  <div class="field-row">
 
-              <div class="subgroup">
-                <p class="subgroup__title">Present Address — Office</p>
-                <div class="field">
-                  <label class="field__label" for="officeAddress">Address <span class="field__tag field__tag--optional">Optional</span></label>
-                  <textarea class="field__control" id="officeAddress" rows="2"></textarea>
-                </div>
-                <div class="field-row">
-                  <div class="field">
-                    <label class="field__label" for="officeTel">Tel. No. <span class="field__tag field__tag--optional">Optional</span></label>
-                    <input class="field__control" type="tel" id="officeTel">
-                  </div>
-                  <div class="field">
-                    <label class="field__label" for="officeEmail">Email <span class="field__tag field__tag--optional">Optional</span></label>
-                    <input class="field__control" type="email" id="officeEmail">
-                  </div>
-                </div>
-              </div>
+    <div class="field" id="field-fatherName">
+      <label class="field__label" for="fatherName">
+        Father's Name <span class="field__required">*</span>
+      </label>
+      <input class="field__control" type="text" id="fatherName">
+      <p class="field__error"></p>
+    </div>
 
-              <div class="field-row">
-                <div class="field" id="field-studentMobile">
-                  <label class="field__label" for="studentMobile">Your Mobile Number <span class="field__tag field__tag--required">Required</span></label>
-                  <input class="field__control" type="tel" id="studentMobile" inputmode="numeric" placeholder="10-digit number">
-                  <p class="field__error"></p>
-                </div>
-                <div class="field" id="field-studentEmail">
-                  <label class="field__label" for="studentEmail">Your Email <span class="field__tag field__tag--required">Required</span></label>
-                  <input class="field__control" type="email" id="studentEmail">
-                  <p class="field__error"></p>
-                </div>
-              </div>
+    <div class="field" id="field-motherName">
+      <label class="field__label" for="motherName">
+        Mother's Name <span class="field__required">*</span>
+      </label>
+      <input class="field__control" type="text" id="motherName">
+      <p class="field__error"></p>
+    </div>
 
-              <div class="field" id="field-emergencyAddress">
-                <label class="field__label" for="emergencyAddress">Emergency Contact Address <span class="field__tag field__tag--required">Required</span></label>
-                <textarea class="field__control" id="emergencyAddress" rows="2"></textarea>
-                <p class="field__help">Who should the hostel reach first in an emergency, and where.</p>
-                <p class="field__error"></p>
-              </div>
+  </div>
 
-              <div class="field-row">
-                <div class="field" id="field-emergencyTel">
-                  <label class="field__label" for="emergencyTel">Emergency Contact Tel. No. <span class="field__tag field__tag--required">Required</span></label>
-                  <input class="field__control" type="tel" id="emergencyTel">
-                  <p class="field__error"></p>
-                </div>
-                <div></div>
-              </div>
-            </div>
+
+  <div class="field-row">
+
+    <div class="field" id="field-fatherPhone">
+      <label class="field__label" for="fatherPhone">
+        Father's Phone Number <span class="field__required">*</span>
+      </label>
+      <input
+        class="field__control"
+        type="tel"
+        id="fatherPhone"
+        inputmode="numeric"
+        placeholder="10-digit number"
+      >
+      <p class="field__error"></p>
+    </div>
+
+    <div class="field" id="field-motherPhone">
+      <label class="field__label" for="motherPhone">
+        Mother's Phone Number <span class="field__required">*</span>
+      </label>
+      <input
+        class="field__control"
+        type="tel"
+        id="motherPhone"
+        inputmode="numeric"
+        placeholder="10-digit number"
+      >
+      <p class="field__error"></p>
+    </div>
+
+  </div>
+
+
+  <div class="subgroup">
+
+    <p class="subgroup__title">Present Address — Residence</p>
+
+    <div class="field-row">
+
+      <div class="field" id="field-houseNo">
+        <label class="field__label" for="houseNo">
+          House / Flat No. &amp; Floor <span class="field__required">*</span>
+        </label>
+        <input
+          class="field__control"
+          type="text"
+          id="houseNo"
+          placeholder="e.g. Flat 204, 2nd Floor"
+        >
+        <p class="field__error"></p>
+      </div>
+
+      <div class="field" id="field-streetArea">
+        <label class="field__label" for="streetArea">
+          Street / Area / Locality <span class="field__required">*</span>
+        </label>
+        <input
+          class="field__control"
+          type="text"
+          id="streetArea"
+          placeholder="Street, colony or locality"
+        >
+        <p class="field__error"></p>
+      </div>
+
+    </div>
+
+
+    <div class="field-row">
+
+      <div class="field" id="field-city">
+        <label class="field__label" for="city">
+          Town / City <span class="field__required">*</span>
+        </label>
+        <input
+          class="field__control"
+          type="text"
+          id="city"
+          placeholder="Town or city"
+        >
+        <p class="field__error"></p>
+      </div>
+
+      <div class="field" id="field-district">
+        <label class="field__label" for="district">
+          District <span class="field__required">*</span>
+        </label>
+        <input
+          class="field__control"
+          type="text"
+          id="district"
+          placeholder="District"
+        >
+        <p class="field__error"></p>
+      </div>
+
+    </div>
+
+
+    <div class="field-row">
+
+      <div class="field" id="field-state">
+        <label class="field__label" for="state">
+          State <span class="field__required">*</span>
+        </label>
+        <input
+          class="field__control"
+          type="text"
+          id="state"
+          placeholder="State"
+        >
+        <p class="field__error"></p>
+      </div>
+
+      <div class="field" id="field-pincode">
+        <label class="field__label" for="pincode">
+          PIN Code <span class="field__required">*</span>
+        </label>
+        <input
+          class="field__control"
+          type="text"
+          id="pincode"
+          inputmode="numeric"
+          maxlength="6"
+          placeholder="6-digit PIN code"
+        >
+        <p class="field__error"></p>
+      </div>
+
+    </div>
+
+
+    <div class="field" id="field-landmark">
+      <label class="field__label" for="landmark">
+        Landmark <span class="field__tag field__tag--optional">Optional</span>
+      </label>
+      <input
+        class="field__control"
+        type="text"
+        id="landmark"
+        placeholder="Nearby landmark"
+      >
+      <p class="field__error"></p>
+    </div>
+
+
+    <div class="field-row">
+
+      <div class="field" id="field-resTel">
+        <label class="field__label" for="resTel">
+          Residence Telephone Number
+          <span class="field__tag field__tag--optional">Optional</span>
+        </label>
+        <input
+          class="field__control"
+          type="tel"
+          id="resTel"
+          inputmode="numeric"
+          placeholder="Telephone number"
+        >
+        <p class="field__error"></p>
+      </div>
+
+      <div class="field" id="field-resEmail">
+        <label class="field__label" for="resEmail">
+          Residence Email
+          <span class="field__tag field__tag--optional">Optional</span>
+        </label>
+        <input
+          class="field__control"
+          type="email"
+          id="resEmail"
+          placeholder="Email address"
+        >
+        <p class="field__error"></p>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="field" id="field-emergencyAddress">
+    <label class="field__label" for="emergencyAddress">
+      Emergency Contact Address <span class="field__required">*</span>
+    </label>
+    <textarea class="field__control" id="emergencyAddress" rows="2"></textarea>
+    <p class="field__help">Who should the hostel reach first in an emergency, and where.</p>
+    <p class="field__error"></p>
+  </div>
+
+  <div class="field-row">
+    <div class="field" id="field-emergencyTel">
+      <label class="field__label" for="emergencyTel">
+        Emergency Contact Tel. No. <span class="field__required">*</span>
+      </label>
+      <input class="field__control" type="tel" id="emergencyTel">
+      <p class="field__error"></p>
+    </div>
+    <div></div>
+  </div>
+
+</div>
 
             <!-- ============ STEP: LOCAL GUARDIAN DETAILS ============ -->
-            <div class="step-section" data-step="guardian">
-              <p class="panel__hint" style="margin-top: -8px;">Required — your local guardian is who the hostel contacts first if your family is far from campus.</p>
+<div class="step-section" data-step="guardian">
 
-              <div class="subgroup">
-                <p class="subgroup__title">Guardian — Residence</p>
-                <div class="field" id="field-guardianResAddress">
-                  <label class="field__label" for="guardianResAddress">Address <span class="field__tag field__tag--required">Required</span></label>
-                  <textarea class="field__control" id="guardianResAddress" rows="2"></textarea>
-                  <p class="field__error"></p>
-                </div>
-                <div class="field-row">
-                  <div class="field" id="field-guardianResTel">
-                    <label class="field__label" for="guardianResTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
-                    <input class="field__control" type="tel" id="guardianResTel">
-                    <p class="field__error"></p>
-                  </div>
-                  <div class="field" id="field-guardianResEmail">
-                    <label class="field__label" for="guardianResEmail">Email <span class="field__tag field__tag--required">Required</span></label>
-                    <input class="field__control" type="email" id="guardianResEmail">
-                    <p class="field__error"></p>
-                  </div>
-                </div>
-              </div>
+  <div class="subgroup">
 
-              <div class="subgroup">
-                <p class="subgroup__title">Guardian — Office</p>
-                <div class="field" id="field-guardianOfficeAddress">
-                  <label class="field__label" for="guardianOfficeAddress">Address <span class="field__tag field__tag--required">Required</span></label>
-                  <textarea class="field__control" id="guardianOfficeAddress" rows="2"></textarea>
-                  <p class="field__error"></p>
-                </div>
-                <div class="field-row">
-                  <div class="field" id="field-guardianOfficeTel">
-                    <label class="field__label" for="guardianOfficeTel">Tel. No. <span class="field__tag field__tag--required">Required</span></label>
-                    <input class="field__control" type="tel" id="guardianOfficeTel">
-                    <p class="field__error"></p>
-                  </div>
-                  <div class="field" id="field-guardianOfficeEmail">
-                    <label class="field__label" for="guardianOfficeEmail">Email <span class="field__tag field__tag--required">Required</span></label>
-                    <input class="field__control" type="email" id="guardianOfficeEmail">
-                    <p class="field__error"></p>
-                  </div>
-                </div>
-              </div>
-            </div>
+    <p class="subgroup__title">Local Guardian</p>
+
+    <!-- Guardian Name + Relationship -->
+    <div class="field-row">
+
+      <div class="field" id="field-guardianName">
+        <label class="field__label" for="guardianName">
+          Guardian Name
+          <span class="field__tag field__tag--optional">Optional</span>
+        </label>
+
+        <input
+          class="field__control"
+          type="text"
+          id="guardianName"
+          placeholder="Full name of guardian"
+        >
+
+        <p class="field__error"></p>
+      </div>
+
+
+      <div class="field" id="field-guardianRelationship">
+        <label class="field__label" for="guardianRelationship">
+          Relationship
+          <span class="field__tag field__tag--optional">Optional</span>
+        </label>
+
+        <select class="field__control" id="guardianRelationship">
+          <option value="" selected>Select relationship</option>
+          <option value="Father">Father</option>
+          <option value="Mother">Mother</option>
+          <option value="Brother">Brother</option>
+          <option value="Sister">Sister</option>
+          <option value="Uncle">Uncle</option>
+          <option value="Aunt">Aunt</option>
+          <option value="Grandfather">Grandfather</option>
+          <option value="Grandmother">Grandmother</option>
+          <option value="Other">Other</option>
+        </select>
+
+        <p class="field__error"></p>
+      </div>
+
+    </div>
+
+
+    <!-- Guardian Phone -->
+    <div class="field" id="field-guardianPhone">
+
+      <label class="field__label" for="guardianPhone">
+        Guardian Phone Number
+        <span class="field__tag field__tag--optional">Optional</span>
+      </label>
+
+      <input
+        class="field__control"
+        type="tel"
+        id="guardianPhone"
+        inputmode="numeric"
+        maxlength="10"
+        placeholder="10-digit mobile number"
+      >
+
+      <p class="field__error"></p>
+
+    </div>
+
+
+    <!-- Guardian Address -->
+    <div class="subgroup">
+
+      <p class="subgroup__title">Guardian Address</p>
+
+      <!-- House + Street -->
+      <div class="field-row">
+
+        <div class="field" id="field-guardianHouseNo">
+          <label class="field__label" for="guardianHouseNo">
+            House / Flat No. &amp; Floor
+            <span class="field__tag field__tag--optional">Optional</span>
+          </label>
+
+          <input
+            class="field__control"
+            type="text"
+            id="guardianHouseNo"
+            placeholder="e.g. Flat 204, 2nd Floor"
+          >
+
+          <p class="field__error"></p>
+        </div>
+
+
+        <div class="field" id="field-guardianStreetArea">
+          <label class="field__label" for="guardianStreetArea">
+            Street / Area / Locality
+            <span class="field__tag field__tag--optional">Optional</span>
+          </label>
+
+          <input
+            class="field__control"
+            type="text"
+            id="guardianStreetArea"
+            placeholder="Street, colony or locality"
+          >
+
+          <p class="field__error"></p>
+        </div>
+
+      </div>
+
+
+      <!-- City + District -->
+      <div class="field-row">
+
+        <div class="field" id="field-guardianCity">
+          <label class="field__label" for="guardianCity">
+            Town / City
+            <span class="field__tag field__tag--optional">Optional</span>
+          </label>
+
+          <input
+            class="field__control"
+            type="text"
+            id="guardianCity"
+            placeholder="Town or city"
+          >
+
+          <p class="field__error"></p>
+        </div>
+
+
+        <div class="field" id="field-guardianDistrict">
+          <label class="field__label" for="guardianDistrict">
+            District
+            <span class="field__tag field__tag--optional">Optional</span>
+          </label>
+
+          <input
+            class="field__control"
+            type="text"
+            id="guardianDistrict"
+            placeholder="District"
+          >
+
+          <p class="field__error"></p>
+        </div>
+
+      </div>
+
+
+      <!-- State + PIN -->
+      <div class="field-row">
+
+        <div class="field" id="field-guardianState">
+          <label class="field__label" for="guardianState">
+            State
+            <span class="field__tag field__tag--optional">Optional</span>
+          </label>
+
+          <input
+            class="field__control"
+            type="text"
+            id="guardianState"
+            placeholder="State"
+          >
+
+          <p class="field__error"></p>
+        </div>
+
+
+        <div class="field" id="field-guardianPincode">
+          <label class="field__label" for="guardianPincode">
+            PIN Code
+            <span class="field__tag field__tag--optional">Optional</span>
+          </label>
+
+          <input
+            class="field__control"
+            type="text"
+            id="guardianPincode"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="6-digit PIN code"
+          >
+
+          <p class="field__error"></p>
+        </div>
+
+      </div>
+
+
+      <!-- Landmark -->
+      <div class="field" id="field-guardianLandmark">
+
+        <label class="field__label" for="guardianLandmark">
+          Landmark
+          <span class="field__tag field__tag--optional">Optional</span>
+        </label>
+
+        <input
+          class="field__control"
+          type="text"
+          id="guardianLandmark"
+          placeholder="Nearby landmark"
+        >
+
+        <p class="field__error"></p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
 
             <!-- ============ STEP: HOSTEL PREFERENCES ============ -->
             <div class="step-section" data-step="hostel">
@@ -262,15 +801,14 @@
                    for why this can't be a front-end-only restriction. -->
               <div class="field-row">
                 <div class="field">
-                  <label class="field__label" for="hostel">Hostel <span class="field__tag field__tag--required">Required</span></label>
+                  <label class="field__label" for="hostel">Hostel <span class="field__required">*</span></label>
                   <input class="field__control" type="text" id="hostel" disabled>
-                  <p class="field__help">Based on your gender on record — contact the Hostel Office if this is incorrect.</p>
                 </div>
                 <div></div>
               </div>
 
               <fieldset class="field" id="field-roomType">
-                <legend class="field__label">Room Type Preference <span class="field__tag field__tag--required">Required</span></legend>
+                <legend class="field__label">Room Type Preference <span class="field__required">*</span></legend>
                 <div class="choice-group">
                   <label class="choice-card">
                     <input type="radio" name="roomType" value="Triple-sharing">
@@ -293,13 +831,11 @@
               <div class="field">
                 <label class="field__label" for="roommateEnrolment">Roommate Preference <span class="field__tag field__tag--optional">Optional</span></label>
                 <input class="field__control" type="text" id="roommateEnrolment" inputmode="numeric" placeholder="Friend's enrolment number">
-                <p class="field__help">If your friend also lists you, we'll try to seat you together. This isn't guaranteed — it depends on room availability.</p>
               </div>
             </div>
 
             <!-- ============ STEP: DOCUMENTS ============ -->
             <div class="step-section" data-step="documents">
-              <p class="panel__hint" style="margin-top: -8px;">Accepted formats: JPG, PNG or PDF, up to 5 MB each.</p>
               <div class="stack" id="documents-container"><!-- populated by renderUploaders() --></div>
             </div>
 
@@ -310,7 +846,7 @@
 
             <div class="btn-row">
               <button type="button" class="btn btn--secondary" id="back-btn">Back</button>
-              <button type="button" class="btn btn--primary" id="next-btn">Next: Family &amp; Contact Details</button>
+              <button type="button" class="btn btn--primary" id="next-btn">Next</button>
             </div>
           </div>
         </div>
@@ -493,7 +1029,8 @@
       renderStepNav(document.getElementById('step-nav'), key);
 
       document.getElementById('back-btn').style.visibility = index === 0 ? 'hidden' : 'visible';
-      document.getElementById('next-btn').textContent = NEXT_LABELS[key];
+      document.getElementById('next-btn').textContent =
+  key === 'review' ? 'Submit Application' : 'Next';
       if (key === 'documents') updateDocumentsNextState();
       else document.getElementById('next-btn').disabled = false;
 
@@ -504,10 +1041,10 @@
     }
 
     function updateDocumentsNextState() {
-      if (STEP_ORDER[currentStepIndex] === 'documents') {
-        document.getElementById('next-btn').disabled = !uploaders.allRequiredDone();
-      }
-    }
+  if (STEP_ORDER[currentStepIndex] === 'documents') {
+    document.getElementById('next-btn').disabled = !uploaders.allRequiredDone();
+  }
+}
 
     function goBack() {
       if (currentStepIndex === 0) return;
@@ -517,6 +1054,8 @@
     }
 
     function advanceStep() {
+
+      
       const key = STEP_ORDER[currentStepIndex];
 
       if (!validateStep(key)) {
@@ -570,20 +1109,57 @@
       return !!value;
     }
 
-    const PERSONAL_REQUIRED_FIELDS = [{ id: 'fullName' }, { id: 'nationality' }, { id: 'dateOfJoining' }];
+    const PERSONAL_REQUIRED_FIELDS = [
+  { id: 'fullName' },
+  { id: 'nationality' },
+  { id: 'dateOfJoining' },
+  {
+    id: 'studentMobile',
+    validator: isValidMobile,
+    invalidMsg: 'Enter a valid 10-digit mobile number.'
+  },
+  {
+    id: 'studentEmail',
+    validator: isValidEmail,
+    invalidMsg: 'Enter a valid email address.'
+  }
+];
     const FAMILY_REQUIRED_FIELDS = [
-      { id: 'fatherName' }, { id: 'motherName' }, { id: 'resAddress' }, { id: 'resTel' },
-      { id: 'resEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
-      { id: 'studentMobile', validator: isValidMobile, invalidMsg: 'Enter a valid 10-digit mobile number.' },
-      { id: 'studentEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
-      { id: 'emergencyAddress' }, { id: 'emergencyTel' }
-    ];
-    const GUARDIAN_REQUIRED_FIELDS = [
-      { id: 'guardianResAddress' }, { id: 'guardianResTel' },
-      { id: 'guardianResEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' },
-      { id: 'guardianOfficeAddress' }, { id: 'guardianOfficeTel' },
-      { id: 'guardianOfficeEmail', validator: isValidEmail, invalidMsg: 'Enter a valid email address.' }
-    ];
+  { id: 'fatherName' },
+  { id: 'motherName' },
+
+  {
+    id: 'fatherPhone',
+    validator: isValidMobile,
+    invalidMsg: 'Enter a valid 10-digit mobile number.'
+  },
+
+  {
+    id: 'motherPhone',
+    validator: isValidMobile,
+    invalidMsg: 'Enter a valid 10-digit mobile number.'
+  },
+
+  { id: 'houseNo' },
+  { id: 'streetArea' },
+  { id: 'city' },
+  { id: 'district' },
+  { id: 'state' },
+
+  {
+    id: 'pincode',
+    validator: (value) => /^\d{6}$/.test(value.trim()),
+    invalidMsg: 'Enter a valid 6-digit PIN code.'
+  },
+  { id: 'emergencyAddress' },
+  { id: 'emergencyTel' }
+];
+    // Local guardian is fully Optional in the current design (name,
+    // relationship, phone, and the single address block below) — nothing
+    // required here. Left as a real (empty) array, not a `return true`
+    // shortcut, so validateStep('guardian') below stays the same shape as
+    // every other step and a future required guardian field just works.
+    const GUARDIAN_REQUIRED_FIELDS = [];
 
     function validateStep(key) {
       if (key === 'personal') {
@@ -608,43 +1184,120 @@
 
     /* ---- prefill (runs once, on load) ---- */
     function prefillPersonal() {
-      document.getElementById('dob').value = student.DOB;
-      document.getElementById('enrolmentNo').value = student.EnrolmentNo;
-      document.getElementById('courseSchool').value = `${student.Course} — ${student.School}`;
-      document.getElementById('fullName').value = draft.name ?? student.Name;
-      document.getElementById('nationality').value = draft.nationality ?? 'Indian';
-      document.getElementById('dateOfJoining').value = draft.dateOfJoining ?? '';
-      document.getElementById('extraCurricular').value = draft.extraCurricular ?? '';
-      if (draft.category) {
-        const el = document.querySelector(`input[name="category"][value="${draft.category}"]`);
-        if (el) el.checked = true;
-      }
-      if (draft.reservationCategory) document.getElementById('reservationCategory').value = draft.reservationCategory;
-    }
+  document.getElementById('dob').value = student.DOB;
+  document.getElementById('enrolmentNo').value = student.EnrolmentNo;
+  document.getElementById('courseSchool').value =
+    `${student.Course} — ${student.School}`;
+
+  document.getElementById('fullName').value =
+    draft.name ?? student.Name;
+
+  document.getElementById('nationality').value =
+    draft.nationality ?? 'Indian';
+
+  document.getElementById('studentMobile').value =
+    draft.studentMobile ?? '';
+
+  document.getElementById('studentEmail').value =
+    draft.studentEmail ?? '';
+
+  document.getElementById('dateOfJoining').value =
+    draft.dateOfJoining ?? '';
+
+  document.getElementById('extraCurricular').value =
+    draft.extraCurricular ?? '';
+
+  if (draft.category) {
+    const el = document.querySelector(
+      `input[name="category"][value="${draft.category}"]`
+    );
+    if (el) el.checked = true;
+  }
+
+  if (draft.reservationCategory) {
+    document.getElementById('reservationCategory').value =
+      draft.reservationCategory;
+  }
+}
 
     function prefillFamily() {
-      document.getElementById('fatherName').value = draft.fatherName ?? '';
-      document.getElementById('motherName').value = draft.motherName ?? '';
-      document.getElementById('resAddress').value = draft.residenceAddress?.address ?? '';
-      document.getElementById('resTel').value = draft.residenceAddress?.tel ?? '';
-      document.getElementById('resEmail').value = draft.residenceAddress?.email ?? '';
-      document.getElementById('officeAddress').value = draft.officeAddress?.address ?? '';
-      document.getElementById('officeTel').value = draft.officeAddress?.tel ?? '';
-      document.getElementById('officeEmail').value = draft.officeAddress?.email ?? '';
-      document.getElementById('studentMobile').value = draft.studentMobile ?? '';
-      document.getElementById('studentEmail').value = draft.studentEmail ?? '';
-      document.getElementById('emergencyAddress').value = draft.emergencyAddress ?? '';
-      document.getElementById('emergencyTel').value = draft.emergencyTel ?? '';
-    }
+  document.getElementById('fatherName').value =
+    draft.fatherName ?? '';
+
+  document.getElementById('motherName').value =
+    draft.motherName ?? '';
+
+  document.getElementById('fatherPhone').value =
+    draft.fatherPhone ?? '';
+
+  document.getElementById('motherPhone').value =
+    draft.motherPhone ?? '';
+
+  document.getElementById('houseNo').value =
+    draft.residenceAddress?.houseNo ?? '';
+
+  document.getElementById('streetArea').value =
+    draft.residenceAddress?.streetArea ?? '';
+
+  document.getElementById('city').value =
+    draft.residenceAddress?.city ?? '';
+
+  document.getElementById('district').value =
+    draft.residenceAddress?.district ?? '';
+
+  document.getElementById('state').value =
+    draft.residenceAddress?.state ?? '';
+
+  document.getElementById('pincode').value =
+    draft.residenceAddress?.pincode ?? '';
+
+  document.getElementById('landmark').value =
+    draft.residenceAddress?.landmark ?? '';
+
+  document.getElementById('resTel').value =
+    draft.residenceAddress?.tel ?? '';
+
+  document.getElementById('resEmail').value =
+    draft.residenceAddress?.email ?? '';
+
+  document.getElementById('emergencyAddress').value =
+    draft.emergencyAddress ?? '';
+
+  document.getElementById('emergencyTel').value =
+    draft.emergencyTel ?? '';
+}
 
     function prefillGuardian() {
-      document.getElementById('guardianResAddress').value = draft.localGuardian?.residence?.address ?? '';
-      document.getElementById('guardianResTel').value = draft.localGuardian?.residence?.tel ?? '';
-      document.getElementById('guardianResEmail').value = draft.localGuardian?.residence?.email ?? '';
-      document.getElementById('guardianOfficeAddress').value = draft.localGuardian?.office?.address ?? '';
-      document.getElementById('guardianOfficeTel').value = draft.localGuardian?.office?.tel ?? '';
-      document.getElementById('guardianOfficeEmail').value = draft.localGuardian?.office?.email ?? '';
-    }
+  document.getElementById('guardianName').value =
+    draft.localGuardian?.name ?? '';
+
+  document.getElementById('guardianRelationship').value =
+    draft.localGuardian?.relationship ?? '';
+
+  document.getElementById('guardianPhone').value =
+    draft.localGuardian?.phone ?? '';
+
+  document.getElementById('guardianHouseNo').value =
+    draft.localGuardian?.address?.houseNo ?? '';
+
+  document.getElementById('guardianStreetArea').value =
+    draft.localGuardian?.address?.streetArea ?? '';
+
+  document.getElementById('guardianCity').value =
+    draft.localGuardian?.address?.city ?? '';
+
+  document.getElementById('guardianDistrict').value =
+    draft.localGuardian?.address?.district ?? '';
+
+  document.getElementById('guardianState').value =
+    draft.localGuardian?.address?.state ?? '';
+
+  document.getElementById('guardianPincode').value =
+    draft.localGuardian?.address?.pincode ?? '';
+
+  document.getElementById('guardianLandmark').value =
+    draft.localGuardian?.address?.landmark ?? '';
+}
 
     function prefillHostel() {
       // Locked — the initWizard() gate already guaranteed
@@ -661,53 +1314,65 @@
     /* ---- collect current DOM values for a step, to merge into the draft ---- */
     function collectStep(key) {
       if (key === 'personal') {
-        return {
-          name: document.getElementById('fullName').value,
-          nationality: document.getElementById('nationality').value,
-          dob: student.DOB,
-          courseSchool: document.getElementById('courseSchool').value,
-          dateOfJoining: document.getElementById('dateOfJoining').value,
-          category: document.querySelector('input[name="category"]:checked')?.value ?? '',
-          reservationCategory: document.getElementById('reservationCategory').value,
-          extraCurricular: document.getElementById('extraCurricular').value
-        };
-      }
+  return {
+    name: document.getElementById('fullName').value,
+    nationality: document.getElementById('nationality').value,
+    dob: student.DOB,
+    courseSchool: document.getElementById('courseSchool').value,
+    dateOfJoining: document.getElementById('dateOfJoining').value,
+
+    studentMobile: document.getElementById('studentMobile').value,
+    studentEmail: document.getElementById('studentEmail').value,
+
+    category: document.querySelector('input[name="category"]:checked')?.value ?? '',
+    reservationCategory: document.getElementById('reservationCategory').value,
+    extraCurricular: document.getElementById('extraCurricular').value
+  };
+}
       if (key === 'family') {
-        return {
-          fatherName: document.getElementById('fatherName').value,
-          motherName: document.getElementById('motherName').value,
-          residenceAddress: {
-            address: document.getElementById('resAddress').value,
-            tel: document.getElementById('resTel').value,
-            email: document.getElementById('resEmail').value
-          },
-          officeAddress: {
-            address: document.getElementById('officeAddress').value,
-            tel: document.getElementById('officeTel').value,
-            email: document.getElementById('officeEmail').value
-          },
-          studentMobile: document.getElementById('studentMobile').value,
-          studentEmail: document.getElementById('studentEmail').value,
-          emergencyAddress: document.getElementById('emergencyAddress').value,
-          emergencyTel: document.getElementById('emergencyTel').value
-        };
-      }
+  return {
+    fatherName: document.getElementById('fatherName').value,
+    motherName: document.getElementById('motherName').value,
+
+    fatherPhone: document.getElementById('fatherPhone').value,
+    motherPhone: document.getElementById('motherPhone').value,
+
+    residenceAddress: {
+      houseNo: document.getElementById('houseNo').value,
+      streetArea: document.getElementById('streetArea').value,
+      city: document.getElementById('city').value,
+      district: document.getElementById('district').value,
+      state: document.getElementById('state').value,
+      pincode: document.getElementById('pincode').value,
+      landmark: document.getElementById('landmark').value,
+
+      tel: document.getElementById('resTel').value,
+      email: document.getElementById('resEmail').value
+    },
+
+    emergencyAddress: document.getElementById('emergencyAddress').value,
+    emergencyTel: document.getElementById('emergencyTel').value
+  };
+}
       if (key === 'guardian') {
-        return {
-          localGuardian: {
-            residence: {
-              address: document.getElementById('guardianResAddress').value,
-              tel: document.getElementById('guardianResTel').value,
-              email: document.getElementById('guardianResEmail').value
-            },
-            office: {
-              address: document.getElementById('guardianOfficeAddress').value,
-              tel: document.getElementById('guardianOfficeTel').value,
-              email: document.getElementById('guardianOfficeEmail').value
-            }
-          }
-        };
+  return {
+    localGuardian: {
+      name: document.getElementById('guardianName').value,
+      relationship: document.getElementById('guardianRelationship').value,
+      phone: document.getElementById('guardianPhone').value,
+
+      address: {
+        houseNo: document.getElementById('guardianHouseNo').value,
+        streetArea: document.getElementById('guardianStreetArea').value,
+        city: document.getElementById('guardianCity').value,
+        district: document.getElementById('guardianDistrict').value,
+        state: document.getElementById('guardianState').value,
+        pincode: document.getElementById('guardianPincode').value,
+        landmark: document.getElementById('guardianLandmark').value
       }
+    }
+  };
+}
       if (key === 'hostel') {
         return {
           // Re-derived from Gender, not read off the (disabled, display-only)
@@ -761,30 +1426,107 @@
         field('Date of Joining University', d.dateOfJoining ? formatDateDisplay(d.dateOfJoining) : ''),
         field('Category', d.category),
         field('Reservation Category', d.reservationCategory),
+        field('Your Mobile', d.studentMobile),
+        field('Your Email', d.studentEmail),
         field('Extra-Curricular Activities', d.extraCurricular, true)
       ].join(''));
 
       const family = block('Family & Contact Details', 'family', [
-        field("Father's Name", d.fatherName),
-        field("Mother's Name", d.motherName),
-        field('Residence Address', d.residenceAddress?.address, true),
-        field('Residence Tel.', d.residenceAddress?.tel),
-        field('Residence Email', d.residenceAddress?.email),
-        field('Office Address', d.officeAddress?.address, true),
-        field('Your Mobile', d.studentMobile),
-        field('Your Email', d.studentEmail),
-        field('Emergency Contact Address', d.emergencyAddress, true),
-        field('Emergency Contact Tel.', d.emergencyTel)
-      ].join(''));
+  field("Father's Name", d.fatherName),
+  field("Mother's Name", d.motherName),
+
+  field("Father's Phone Number", d.fatherPhone),
+  field("Mother's Phone Number", d.motherPhone),
+
+  field(
+    'House / Flat No. & Floor',
+    d.residenceAddress?.houseNo
+  ),
+
+  field(
+    'Street / Area / Locality',
+    d.residenceAddress?.streetArea
+  ),
+
+  field(
+    'Town / City',
+    d.residenceAddress?.city
+  ),
+
+  field(
+    'District',
+    d.residenceAddress?.district
+  ),
+
+  field(
+    'State',
+    d.residenceAddress?.state
+  ),
+
+  field(
+    'PIN Code',
+    d.residenceAddress?.pincode
+  ),
+
+  field(
+    'Landmark',
+    d.residenceAddress?.landmark
+  ),
+
+  field(
+    'Residence Telephone',
+    d.residenceAddress?.tel
+  ),
+
+  field(
+    'Residence Email',
+    d.residenceAddress?.email
+  ),
+
+  field('Emergency Contact Address', d.emergencyAddress),
+  field('Emergency Contact Tel.', d.emergencyTel)
+].join(''));
 
       const guardian = block('Local Guardian Details', 'guardian', [
-        field('Residence Address', d.localGuardian?.residence?.address, true),
-        field('Residence Tel.', d.localGuardian?.residence?.tel),
-        field('Residence Email', d.localGuardian?.residence?.email),
-        field('Office Address', d.localGuardian?.office?.address, true),
-        field('Office Tel.', d.localGuardian?.office?.tel),
-        field('Office Email', d.localGuardian?.office?.email)
-      ].join(''));
+  field('Guardian Name', d.localGuardian?.name),
+  field('Relationship', d.localGuardian?.relationship),
+  field('Guardian Phone Number', d.localGuardian?.phone),
+
+  field(
+    'House / Flat No. & Floor',
+    d.localGuardian?.address?.houseNo
+  ),
+
+  field(
+    'Street / Area / Locality',
+    d.localGuardian?.address?.streetArea
+  ),
+
+  field(
+    'Town / City',
+    d.localGuardian?.address?.city
+  ),
+
+  field(
+    'District',
+    d.localGuardian?.address?.district
+  ),
+
+  field(
+    'State',
+    d.localGuardian?.address?.state
+  ),
+
+  field(
+    'PIN Code',
+    d.localGuardian?.address?.pincode
+  ),
+
+  field(
+    'Landmark',
+    d.localGuardian?.address?.landmark
+  )
+].join(''));
 
       const hostel = block('Hostel Preferences', 'hostel', [
         field('Hostel', d.hostel),

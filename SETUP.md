@@ -36,17 +36,19 @@ You'll do six things, in order: create an OAuth client in Google Cloud, run a on
 
 1. Create a new Google Sheet, name it `HostelDB`, under the same Google account you authorized in step 2.4 — no sharing step needed, since the app now acts as that account directly rather than a separate robot account you'd have to grant access to.
 2. This app also uploads files to a Drive folder named `Hostel Applications` (created automatically the first time someone uploads a document), in that same account's Drive.
-3. Create 5 tabs in HostelDB with these exact header rows (row 1 of each tab, exact spelling/order — the backend reads columns by name):
+3. Create 5 tabs in HostelDB with these exact header rows (row 1 of each tab, exact spelling/order). **Correction: the backend does NOT actually read columns by name** — `getSheetRows()`/`writeRowAt()` in `api/_lib/sheets.js` read/write a fixed `A2:<lastCol>` range purely by COLUMN POSITION, matching each code-side `*_COLUMNS` array index to a letter. The header row is for human reference only; code never looks at it. This means column ORDER must match the arrays in `api/_lib/schema.js` exactly, and any future column must be appended at the end, never inserted/reordered/removed — doing either would silently misalign every existing row.
 
    **Eligibility**
    ```
    EnrolmentNo	Name	DOB	Course	School	Gender
    ```
 
-   **Applications**
+   **Applications** — updated 2026-08-23 for the structured-address UI redesign; the 19 columns from `FatherPhone` onward are new (appended at the end — see the caveat above). If your live sheet predates this, add these 19 header cells after the existing `WaitlistPosition` column; don't touch anything before it.
    ```
-   ApplicationID	EnrolmentNo	Name	Nationality	DOB	Course	School	DateOfJoiningUniversity	CategoryResidence	CategoryReservation	FatherName	MotherName	ParentOfficeAddress	ParentOfficeTel	ParentOfficeEmail	ParentResidenceAddress	ParentResidenceTel	ParentResidenceEmail	GuardianOfficeAddress	GuardianOfficeTel	GuardianOfficeEmail	GuardianResidenceAddress	GuardianResidenceTel	GuardianResidenceEmail	EmergencyAddress	EmergencyTel	StudentMobile	StudentEmail	ExtraCurricular	HostelChoice	RoomTypePreference	RoommatePreferenceEnrolmentNo	PhotoDriveLink	AadharDriveLink	MarksheetsDriveLink	MedicalCertDriveLink	GuardianConsentDriveLink	AntiRaggingDriveLink	SubmissionTimestamp	VerificationStatus	AllotmentStatus	AllottedRoomNo	AllottedRoommateEnrolmentNo	WaitlistPosition
+   ApplicationID	EnrolmentNo	Name	Nationality	DOB	Course	School	DateOfJoiningUniversity	CategoryResidence	CategoryReservation	FatherName	MotherName	ParentOfficeAddress	ParentOfficeTel	ParentOfficeEmail	ParentResidenceAddress	ParentResidenceTel	ParentResidenceEmail	GuardianOfficeAddress	GuardianOfficeTel	GuardianOfficeEmail	GuardianResidenceAddress	GuardianResidenceTel	GuardianResidenceEmail	EmergencyAddress	EmergencyTel	StudentMobile	StudentEmail	ExtraCurricular	HostelChoice	RoomTypePreference	RoommatePreferenceEnrolmentNo	PhotoDriveLink	AadharDriveLink	MarksheetsDriveLink	MedicalCertDriveLink	GuardianConsentDriveLink	AntiRaggingDriveLink	SubmissionTimestamp	VerificationStatus	AllotmentStatus	AllottedRoomNo	AllottedRoommateEnrolmentNo	WaitlistPosition	FatherPhone	MotherPhone	ParentResidenceHouseNo	ParentResidenceStreetArea	ParentResidenceCity	ParentResidenceDistrict	ParentResidenceState	ParentResidencePincode	ParentResidenceLandmark	GuardianName	GuardianRelationship	GuardianPhone	GuardianHouseNo	GuardianStreetArea	GuardianCity	GuardianDistrict	GuardianState	GuardianPincode	GuardianLandmark
    ```
+
+   Also note: as of this same change, the reservation-category value that used to be `PH` is now `PWD` (`api/_lib/allocation.js`'s `priorityTier()` checks for `PWD`) — if you have existing rows with `CategoryReservation` = `PH`, either leave them (they'll just stop being treated as tier-1/PwBD in future allocation runs) or hand-edit them to `PWD` in the sheet.
 
    **RoomInventory**
    ```

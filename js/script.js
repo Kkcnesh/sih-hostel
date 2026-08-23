@@ -151,40 +151,65 @@
     follows the link's own href immediately afterward.
     ========================================================================== */
   function renderSiteHeader(rootEl, { activeNav = null } = {}) {
-    const student = getSession();
+  const student = getSession();
 
-    const utilityRight = student
-      ? `
-        <span class="site-header__student"><b>${student.Name}</b> &nbsp;${student.EnrolmentNo}</span>
+  const utilityRight = student
+    ? `
+        <div class="site-header__student">
+          <div class="site-header__avatar">
+            ${String(student.Name || 'S').trim().charAt(0).toUpperCase()}
+          </div>
+
+          <div class="site-header__student-info">
+            <div class="site-header__student-name">${student.Name}</div>
+            <div class="site-header__student-id">Enrolment · ${student.EnrolmentNo}</div>
+          </div>
+        </div>
+
         <a href="${pageUrl('login')}" data-role="logout">Log Out</a>
       `
-      : `<a href="${pageUrl('login')}">Home</a><a href="${pageUrl('login')}">Contact Hostel Office</a>`;
+        : `
+        <a href="${pageUrl('login')}">Home</a>
+        <a href="admin.html">Admin Login</a>
+      `;
 
-    const navLinks = student
-      ? `
+  const navLinks = student
+    ? `
         <a href="${applicationEntryUrl(student)}" ${activeNav === 'apply' ? 'aria-current="page"' : ''}>Apply for Hostel</a>
         <a href="${pageUrl('status')}" ${activeNav === 'status' ? 'aria-current="page"' : ''}>Track Status</a>
       `
-      : `<a href="${pageUrl('login')}" aria-current="page">Student Login</a>`;
+    : `
+        <a href="${pageUrl('login')}" aria-current="page">Student Login</a>
+      `;
 
-    rootEl.innerHTML = `
-      <div class="site-header__utility">
-        <div class="site-header__utility-inner">${utilityRight}</div>
-      </div>
-      <div class="site-header__main">
-        <div class="site-header__crest">H</div>
-        <div class="site-header__titles">
-          <div class="site-header__org">Guru Gobind Singh Indraprastha University</div>
-          <div class="site-header__sub">Hostel Allocation Portal</div>
+  rootEl.innerHTML = `
+    <div class="site-header__main">
+      <div class="site-header__brand">
+        <div class="site-header__crest">
+          <img src="assets/GGSIPU-logo.png" alt="GGSIPU Logo">
         </div>
-        <nav class="site-nav">${navLinks}</nav>
-      </div>
-    `;
 
-    rootEl.querySelector('[data-role="logout"]')?.addEventListener('click', () => {
-      clearSession(); // no preventDefault() — the anchor's own href navigation proceeds normally right after
-    });
-  }
+        <div class="site-header__titles">
+          <div class="site-header__org">
+            Guru Gobind Singh Indraprastha University
+          </div>
+          <div class="site-header__sub">
+            Hostel Allocation Portal
+          </div>
+        </div>
+      </div>
+
+      <nav class="site-nav">
+        ${utilityRight}
+        ${navLinks}
+      </nav>
+    </div>
+  `;
+
+  rootEl.querySelector('[data-role="logout"]')?.addEventListener('click', () => {
+    clearSession();
+  });
+}
 
   function renderSiteFooter(rootEl) {
     rootEl.innerHTML = `
@@ -361,8 +386,8 @@
     wrap.id = `uploader-${cfg.key}`;
 
     const tag = cfg.required
-      ? '<span class="field__tag field__tag--required">Required</span>'
-      : '<span class="field__tag field__tag--optional">Optional</span>';
+  ? '<span class="field__required">*</span>'
+  : '<span class="field__tag field__tag--optional">Optional</span>';
 
     const already = state[cfg.key];
     const startDone = already.done;

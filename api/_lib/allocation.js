@@ -61,17 +61,22 @@ const ROOM_TYPES = ['Triple-sharing', '4-sharing'];
 /**
  * 1 = PwBD, 2 = non-Delhi residence, 3 = Delhi. Lower number = higher priority.
  *
- * CAVEAT (flagged, not silently assumed): CategoryReservation (GEN/SC/ST/PH)
- * is modeled as one mutually-exclusive field, but in real Indian reservation
- * policy PwBD/disability is a *horizontal* reservation that cuts across
- * vertical caste categories — a student can be SC *and* PwBD at once. This
- * schema can't represent that (a PwBD+SC student has to pick one value), so
- * treating CategoryReservation === 'PH' as "the" PwBD signal may undercount
- * real PwBD applicants. Pre-existing schema limitation, not something this
- * function can fix on its own.
+ * CAVEAT (flagged, not silently assumed): CategoryReservation (GEN/SC/ST/OBC/
+ * EWS/PWD) is modeled as one mutually-exclusive field, but in real Indian
+ * reservation policy PwBD/disability is a *horizontal* reservation that cuts
+ * across vertical caste categories — a student can be SC *and* PwBD at once.
+ * This schema can't represent that (a PwBD+SC student has to pick one
+ * value), so treating CategoryReservation === 'PWD' as "the" PwBD signal may
+ * undercount real PwBD applicants. Pre-existing schema limitation, not
+ * something this function can fix on its own.
+ *
+ * NAMING: this value was 'PH' until the 2026-08-23 UI redesign renamed it
+ * to 'PWD'. EWS/OBC are new alongside it but need no tiering logic of their
+ * own — only PWD status and CategoryResidence matter for this collapsed
+ * 3-tier policy (see the file header comment).
  */
 function priorityTier(candidate) {
-  if (String(candidate.CategoryReservation || '').trim().toUpperCase() === 'PH') return 1;
+  if (String(candidate.CategoryReservation || '').trim().toUpperCase() === 'PWD') return 1;
   if (String(candidate.CategoryResidence || '').trim() !== 'Delhi') return 2;
   return 3;
 }
