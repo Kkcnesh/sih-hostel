@@ -72,6 +72,69 @@ function columnLetter(index) {
 }
 
 /**
+ * Fixed 2026-08-24: getSheetRows()/writeRowAt() used to assume a `columns`
+ * array's declared order (e.g. APPLICATIONS_COLUMNS) always matched the
+ * live sheet's actual left-to-right column order — i.e. purely positional
+ * access ("column N in the array IS column N in the sheet"), same class of
+ * bug as a hardcoded numeric index, just spelled as array position instead
+ * of a literal number. That was only ever true as long as every schema
+ * change (this project has had several in one day — see schema.js's
+ * "Appended ..." comments) was mirrored into the live sheet's header row in
+ * the exact same order, and nothing here ever verified that. When it
+ * silently drifted, reads pulled the right-looking value from the wrong
+ * physical cell (e.g. the admin dashboard showing a home address under
+ * "Hostel/Room Type") and writes correspondingly wrote values into the
+ * wrong physical column.
+ *
+ * getHeaderMap() is the fix: it reads the sheet's REAL header row (row 1)
+ * and resolves every column lookup against that, every time — immune to
+ * the live sheet's physical order ever diverging from a `columns` array's
+ * declared order, and immune to the divergence being anywhere (not just an
+ * append at the end). If an expected column name isn't found in the live
+ * header at all, that's a genuine drift and gets a loud, specific error
+ * (assertColumnsExist() below) instead of silently defaulting to '' —
+ * exactly the kind of silent failure this whole fix exists to eliminate.
+ *
+ * Cached per sheet name for the life of this warm serverless instance —
+ * same caching philosophy as cachedAuth/cachedSheetsClient above (a header
+ * edit made while an instance is warm won't be picked up until the next
+ * cold start; this project already accepts that same tradeoff for auth).
+ */
+const headerCache = new Map(); // sheetName -> { names: string[], indexByName: {name: index} }
+
+async function getHeaderMap(sheetName) {
+  if (headerCache.has(sheetName)) return headerCache.get(sheetName);
+
+  const sheets = getSheetsClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: getSpreadsheetId(),
+    range: `${sheetName}!1:1`
+  });
+
+  const names = (res.data.values && res.data.values[0]) || [];
+  const indexByName = {};
+  names.forEach((name, i) => {
+    const trimmed = String(name || '').trim();
+    if (trimmed) indexByName[trimmed] = i; // first occurrence wins if a header name is ever duplicated
+  });
+
+  const headerMap = { names, indexByName };
+  headerCache.set(sheetName, headerMap);
+  return headerMap;
+}
+
+/** Throws a clear, actionable error naming exactly which expected column(s) are missing from the live sheet's header row — a schema/sheet drift, not something to paper over by silently reading/writing '' into the wrong place. */
+function assertColumnsExist(sheetName, columns, indexByName) {
+  const missing = columns.filter((col) => indexByName[col] === undefined);
+  if (missing.length > 0) {
+    throw new Error(
+      `${sheetName}'s header row (row 1) is missing column(s): ${missing.join(', ')}. ` +
+      `The live sheet's header no longer matches api/_lib/schema.js — see SETUP.md.`
+    );
+  }
+}
+
+/**
  * Reads every data row (everything after the header) from a sheet and
  * returns it as an array of {...columnFields, _row} objects, where `_row`
  * is the row's 1-indexed position in the actual sheet (header is row 1, so
@@ -81,8 +144,11 @@ function columnLetter(index) {
  */
 async function getSheetRows(sheetName, columns) {
   const sheets = getSheetsClient();
-  const lastCol = columnLetter(columns.length - 1);
-  const range = `${sheetName}!A2:${lastCol}`;
+  const header = await getHeaderMap(sheetName);
+  assertColumnsExist(sheetName, columns, header.indexByName);
+
+  const maxIndex = Math.max(...columns.map((col) => header.indexByName[col]));
+  const range = `${sheetName}!A2:${columnLetter(maxIndex)}`;
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: getSpreadsheetId(),
@@ -91,33 +157,45 @@ async function getSheetRows(sheetName, columns) {
 
   const rows = res.data.values || [];
   return rows.map((rowValues, i) => ({
-    ...rowToObject(columns, rowValues),
+    ...rowToObject(columns, rowValues, header.indexByName),
     _row: i + 2 // +2: 1-indexed, plus the header row
   }));
 }
 
-/** Writes one full row (in `columns` order) at an exact 1-indexed sheet row — used for both inserting a brand-new Applications row and updating an existing one in place. */
+/**
+ * Writes one row at an exact 1-indexed sheet row — used for both inserting
+ * a brand-new Applications row and updating an existing one in place.
+ * Read-modify-write across the sheet's FULL physical header width (not
+ * just the columns this call's `columns` param knows about): the current
+ * row is read first, only the named `columns` are overwritten in place at
+ * their REAL physical positions, then the whole row is written back. This
+ * preserves any live column outside the caller's `columns` schema (e.g.
+ * one added directly to the sheet ahead of a code deploy) instead of a
+ * naive positional overwrite blanking it out.
+ */
 async function writeRowAt(sheetName, columns, rowNumber, rowObject) {
   const sheets = getSheetsClient();
-  const lastCol = columnLetter(columns.length - 1);
-  const rowValues = columns.map((col) => (rowObject[col] === undefined ? '' : rowObject[col]));
+  const header = await getHeaderMap(sheetName);
+  assertColumnsExist(sheetName, columns, header.indexByName);
 
-  await sheets.spreadsheets.values.update({
+  const range = `${sheetName}!A${rowNumber}:${columnLetter(header.names.length - 1)}${rowNumber}`;
+
+  const currentRes = await sheets.spreadsheets.values.get({
     spreadsheetId: getSpreadsheetId(),
-    range: `${sheetName}!A${rowNumber}:${lastCol}${rowNumber}`,
-    valueInputOption: 'RAW',
-    resource: { values: [rowValues] }
+    range
   });
-}
+  const currentValues = (currentRes.data.values && currentRes.data.values[0]) || [];
+  while (currentValues.length < header.names.length) currentValues.push('');
 
-/** Writes a single cell — used only for the Counters sheet's NextValue increment. */
-async function writeCell(sheetName, cellA1, value) {
-  const sheets = getSheetsClient();
+  columns.forEach((col) => {
+    currentValues[header.indexByName[col]] = rowObject[col] === undefined ? '' : rowObject[col];
+  });
+
   await sheets.spreadsheets.values.update({
     spreadsheetId: getSpreadsheetId(),
-    range: `${sheetName}!${cellA1}`,
+    range,
     valueInputOption: 'RAW',
-    resource: { values: [[value]] }
+    resource: { values: [currentValues] }
   });
 }
 
@@ -148,7 +226,6 @@ module.exports = {
   getSpreadsheetId,
   getSheetRows,
   writeRowAt,
-  writeCell,
   appendRow,
   logEvent
 };

@@ -44,7 +44,7 @@
  * ============================================================================
  */
 
-const { getSheetRows, writeRowAt, writeCell, logEvent } = require('./_lib/sheets');
+const { getSheetRows, writeRowAt, logEvent } = require('./_lib/sheets');
 const {
   SHEET_NAMES,
   ELIGIBILITY_COLUMNS,
@@ -172,7 +172,11 @@ async function generateApplicationId() {
   }
 
   const nextValue = Number(counterRow.NextValue || 0) + 1;
-  await writeCell(SHEET_NAMES.COUNTERS, `B${counterRow._row}`, nextValue);
+  // Routed through writeRowAt (header-resolved, see _lib/sheets.js) rather
+  // than a hardcoded `B${row}` cell address — that literal 'B' was itself
+  // the same class of positional assumption (NextValue is column B) that
+  // caused the Applications-sheet data-in-wrong-column bug elsewhere.
+  await writeRowAt(SHEET_NAMES.COUNTERS, COUNTERS_COLUMNS, counterRow._row, { ...counterRow, NextValue: nextValue });
 
   const year = new Date().getFullYear();
   return `HA-${year}-${String(nextValue).padStart(6, '0')}`;

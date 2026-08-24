@@ -147,10 +147,29 @@ function columnIndex(columns, name) {
   return idx;
 }
 
-/** Turns a sheet row (array of cell values) into a {ColumnName: value} object. */
-function rowToObject(columns, rowValues) {
+/**
+ * Turns a sheet row (array of cell values) into a {ColumnName: value}
+ * object — looked up via `indexByName` (each column's ACTUAL physical
+ * position in the live sheet's header row), never via `columns`' own
+ * array order. This project's Applications/Eligibility schemas have grown
+ * by appending new columns to APPLICATIONS_COLUMNS/ELIGIBILITY_COLUMNS
+ * several times in one day (see the "Appended ..." comments on those
+ * arrays above) — the declared array order was only ever a promise that
+ * the live sheet's header would be kept in the same order, never something
+ * this function itself verified. When that promise silently broke (a
+ * schema change landed in code without the live sheet's header being
+ * updated to match, in the same order), this used to read the right-
+ * looking value from the wrong physical cell — e.g. the admin dashboard
+ * showing a home address under "Hostel/Room Type". `indexByName` comes
+ * from getHeaderMap() in _lib/sheets.js, which reads the sheet's real
+ * header row fresh — don't "simplify" this back to positional zipping.
+ */
+function rowToObject(columns, rowValues, indexByName) {
   const obj = {};
-  columns.forEach((col, i) => { obj[col] = rowValues[i] !== undefined ? rowValues[i] : ''; });
+  columns.forEach((col) => {
+    const idx = indexByName[col];
+    obj[col] = rowValues[idx] !== undefined ? rowValues[idx] : '';
+  });
   return obj;
 }
 
