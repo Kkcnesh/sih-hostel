@@ -95,6 +95,17 @@ const APPLICATIONS_COLUMNS = [
 // than writing an arbitrary string into the sheet.
 const VERIFICATION_STATUSES = ['Pending', 'Verified'];
 
+// The four values AllotmentStatus is ever set to: 'Not Processed' (default,
+// see buildApplicationRow() below), 'Allotted'/'Waitlisted' (written by
+// runAllocation.js via _lib/allocation.js's allocatePool()), and 'Vacated'
+// — added 2026-08-24 for api/admin/vacateRoom.js, set when an admin marks a
+// previously-Allotted student's room as vacated (student left permanently).
+// A Vacated row is kept for record-keeping (not deleted) but is excluded
+// from every future runAllocation.js run, whose candidate filter only reads
+// rows still 'Not Processed' — a 'Vacated' row is neither reprocessed nor
+// mistaken for a live Allotted/Waitlisted row.
+const ALLOTMENT_STATUSES = ['Not Processed', 'Allotted', 'Waitlisted', 'Vacated'];
+
 const ROOM_INVENTORY_COLUMNS = ['RoomNo', 'Hostel', 'RoomType', 'Capacity', 'Occupied'];
 const COUNTERS_COLUMNS = ['CounterName', 'NextValue'];
 const LOGS_COLUMNS = ['Timestamp', 'EnrolmentNo', 'Context', 'Message'];
@@ -468,6 +479,7 @@ module.exports = {
   ELIGIBILITY_COLUMNS,
   APPLICATIONS_COLUMNS,
   VERIFICATION_STATUSES,
+  ALLOTMENT_STATUSES,
   ROOM_INVENTORY_COLUMNS,
   COUNTERS_COLUMNS,
   LOGS_COLUMNS,

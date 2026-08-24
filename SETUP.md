@@ -134,10 +134,15 @@ curl -X POST https://your-deployment.vercel.app/api/runAllocation \
 **`admin.html`** is the dashboard: navigate to it directly (`https://your-deployment.vercel.app/admin.html` — it's not linked from anywhere in the student-facing nav or footer on purpose). It asks for the admin secret once per browser tab, stores it in `sessionStorage`, and uses it to call:
 
 - `POST /api/admin/listApplications` — every Applications row, for the table
+- `POST /api/admin/listRooms` — every RoomInventory row, for the "Shift Room" selector (per-room occupancy is dashboard-internal detail; unlike `/api/vacancy`, this is admin-only and never exposes individual room numbers publicly)
 - `POST /api/admin/updateVerification` — toggles one applicant's `VerificationStatus` between `Pending`/`Verified` (independent of `AllotmentStatus` — verifying documents doesn't trigger or affect allocation)
+- `POST /api/admin/vacateRoom` — marks an Allotted student's room `Vacated` (student left permanently) and auto-promotes the top-waitlisted applicant in the same Hostel+RoomType pool into the freed seat, if one exists — see the comment at the top of `api/admin/vacateRoom.js` for the full roommate/renumbering/promotion-email behavior
+- `POST /api/admin/shiftStudent` — manually moves an Allotted student to a different room within their *same* Hostel+RoomType pool only (never across hostel or room type — see `api/admin/shiftStudent.js`); a paired roommate moves along only if the target room has 2 free seats, otherwise the pairing is broken and flagged in the response
 - `POST /api/runAllocation` — the "Run Allocation" button
 
 See the comment at the top of `api/runAllocation.js` for exactly which priority policy it implements (a scoped-down 3-tier version of GGSIPU's real policy — the full version needs a distance field the application form doesn't collect yet) and its idempotency behavior (safe to rerun as new applications come in; never re-shuffles already-Allotted/Waitlisted rows). Note that `VerificationStatus` is NOT currently read by the allocation engine — a "Not Processed" application is eligible for allocation regardless of verification state. Making verification a prerequisite for allocation would be a deliberate change to `api/_lib/allocation.js`'s candidate filtering, not something either of these features implies on its own.
+
+`AllotmentStatus` is one of `Not Processed` / `Allotted` / `Waitlisted` / `Vacated` (see `api/_lib/schema.js`'s `ALLOTMENT_STATUSES`) — a `Vacated` row is kept for record-keeping but is permanently excluded from future `runAllocation` runs (its candidate filter only reads `Not Processed` rows).
 
 ## 5. Deploy
 

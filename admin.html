@@ -252,7 +252,7 @@
     .admin-table {
       width: 100%;
 
-      min-width: 920px;
+      min-width: 1100px;
 
       border-collapse: collapse;
       border-spacing: 0;
@@ -300,6 +300,11 @@
     .admin-table th:nth-child(7),
     .admin-table td:nth-child(7) {
       width: 125px;
+    }
+
+    .admin-table th:nth-child(8),
+    .admin-table td:nth-child(8) {
+      width: 190px;
     }
 
 
@@ -535,6 +540,131 @@
 
     .admin-verification-button--pending:hover:not(:disabled) {
       background: #FFEDC5;
+    }
+
+
+    /* ==========================================================
+       ROW ACTIONS (Vacate / Shift Room)
+       ========================================================== */
+
+    .admin-row-actions {
+      display: flex;
+
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .admin-action-button {
+      appearance: none;
+
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 7px 12px;
+
+      border: 1px solid;
+      border-radius: 3px;
+
+      font-size: 12px;
+      font-weight: 700;
+
+      line-height: 1.2;
+
+      cursor: pointer;
+
+      transition:
+        background-color 120ms ease,
+        transform 120ms ease;
+    }
+
+    .admin-action-button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .admin-action-button:disabled {
+      cursor: wait;
+      opacity: 0.55;
+      transform: none;
+    }
+
+    .admin-action-button--shift {
+      color: var(--navy);
+
+      background: #EAF0FB;
+
+      border-color: #B7C7E8;
+    }
+
+    .admin-action-button--shift:hover:not(:disabled) {
+      background: #DCE6F8;
+    }
+
+    .admin-action-button--vacate {
+      color: var(--danger);
+
+      background: var(--danger-tint);
+
+      border-color: #E3B3B3;
+    }
+
+    .admin-action-button--vacate:hover:not(:disabled) {
+      background: #F7D8D8;
+    }
+
+
+    /* ==========================================================
+       SHIFT ROOM MODAL
+       ========================================================== */
+
+    #shift-modal-overlay.hidden {
+      display: none !important;
+    }
+
+    #shift-modal-overlay {
+      position: fixed;
+      inset: 0;
+
+      z-index: 100;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding: 20px;
+
+      background: rgba(11, 11, 78, 0.45);
+    }
+
+    #shift-modal {
+      width: 100%;
+      max-width: 440px;
+
+      box-sizing: border-box;
+    }
+
+    #shift-modal .panel__title {
+      font-size: var(--text-lg);
+    }
+
+    #shift-modal-student {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+    }
+
+    #shift-modal-error {
+      font-size: var(--text-sm);
+      color: var(--danger);
+    }
+
+    #shift-modal-error:empty {
+      display: none;
+    }
+
+    .shift-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
     }
 
 
@@ -841,6 +971,10 @@
                       Waitlist Pos.
                     </th>
 
+                    <th>
+                      Actions
+                    </th>
+
                   </tr>
 
                 </thead>
@@ -856,6 +990,71 @@
 
           </section>
 
+
+        </div>
+
+
+        <!-- ====================================================
+             SHIFT ROOM MODAL
+             ==================================================== -->
+
+        <div
+          id="shift-modal-overlay"
+          class="hidden"
+        >
+
+          <div
+            id="shift-modal"
+            class="panel"
+          >
+
+            <div>
+              <h2 class="panel__title">
+                Shift Room
+              </h2>
+
+              <p id="shift-modal-student"></p>
+            </div>
+
+            <div class="field">
+
+              <label
+                class="field__label"
+                for="shift-room-select"
+              >
+                Move to room
+              </label>
+
+              <select
+                class="field__control"
+                id="shift-room-select"
+              ></select>
+
+            </div>
+
+            <p id="shift-modal-error"></p>
+
+            <div class="shift-modal-actions">
+
+              <button
+                type="button"
+                class="btn btn--secondary btn--sm"
+                id="shift-modal-cancel-btn"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                class="btn btn--primary btn--sm"
+                id="shift-modal-confirm-btn"
+              >
+                Confirm Shift
+              </button>
+
+            </div>
+
+          </div>
 
         </div>
 
@@ -1054,6 +1253,7 @@
        ========================================================== */
 
     let applications = [];
+    let rooms = [];
 
 
     /* ==========================================================
@@ -1120,7 +1320,7 @@
 
 
     /* ==========================================================
-       LOAD REAL APPLICATIONS
+       LOAD APPLICATIONS + ROOM INVENTORY
        ========================================================== */
 
     function loadApplications() {
@@ -1135,6 +1335,64 @@
 
           applications =
             result.applications;
+
+        }
+      );
+
+    }
+
+
+    /*
+     * Room inventory backs the "Shift Room" selector only — never blocks
+     * the dashboard itself from showing, so a failure here just leaves the
+     * selector empty rather than locking the admin out of the whole page.
+     */
+
+    function loadRooms() {
+
+      return adminFetch(
+        'admin/listRooms',
+        {}
+      )
+
+      .then(
+        (result) => {
+
+          rooms =
+            result.rooms;
+
+        }
+      )
+
+      .catch(
+        () => {
+
+          rooms = [];
+
+        }
+      );
+
+    }
+
+
+    /*
+     * Shared refresh used after login, Run Allocation, Vacate, and Shift
+     * Room — same "reload + re-render in place, no manual page reload"
+     * pattern for all four, since all four can change Applications and/or
+     * RoomInventory.
+     */
+
+    function refreshDashboard() {
+
+      return Promise.all(
+        [
+          loadApplications(),
+          loadRooms()
+        ]
+      )
+
+      .then(
+        () => {
 
           showDashboard();
 
@@ -1204,7 +1462,7 @@
       const value = document.getElementById('admin-secret-input').value.trim();
       if (!value) { showGate('Enter the admin secret.'); return; }
       setAdminSecret(value);
-      loadApplications().catch((err) => {
+      refreshDashboard().catch((err) => {
         clearAdminSecret();
         showGate(err.message);
       });
@@ -1246,7 +1504,7 @@
           <tr>
 
             <td
-              colspan="7"
+              colspan="8"
               class="admin-table-empty"
             >
               No applications yet.
@@ -1318,6 +1576,35 @@
                   }
                 </td>
 
+
+                <td>
+                  ${
+                    app.allotmentStatus === 'Allotted'
+                      ? `
+                        <div class="admin-row-actions">
+
+                          <button
+                            type="button"
+                            class="admin-action-button admin-action-button--shift"
+                            data-role="shift-btn"
+                          >
+                            Shift Room
+                          </button>
+
+                          <button
+                            type="button"
+                            class="admin-action-button admin-action-button--vacate"
+                            data-role="vacate-btn"
+                          >
+                            Vacate
+                          </button>
+
+                        </div>
+                      `
+                      : '<span class="admin-empty-value">—</span>'
+                  }
+                </td>
+
               </tr>
 
             `
@@ -1336,6 +1623,50 @@
               'click',
               () =>
                 onToggleVerification(
+                  btn
+                    .closest('tr')
+                    .dataset
+                    .applicationId
+                )
+            );
+
+          }
+        );
+
+
+      tbody
+        .querySelectorAll(
+          '[data-role="vacate-btn"]'
+        )
+        .forEach(
+          (btn) => {
+
+            btn.addEventListener(
+              'click',
+              () =>
+                onVacateRoom(
+                  btn
+                    .closest('tr')
+                    .dataset
+                    .applicationId
+                )
+            );
+
+          }
+        );
+
+
+      tbody
+        .querySelectorAll(
+          '[data-role="shift-btn"]'
+        )
+        .forEach(
+          (btn) => {
+
+            btn.addEventListener(
+              'click',
+              () =>
+                openShiftModal(
                   btn
                     .closest('tr')
                     .dataset
@@ -1618,7 +1949,7 @@
           );
 
 
-          return loadApplications();
+          return refreshDashboard();
 
         }
       )
@@ -1658,6 +1989,271 @@
       );
 
     }
+
+
+    /* ==========================================================
+       VACATE ROOM
+       ========================================================== */
+
+    function onVacateRoom(applicationId) {
+
+      const app =
+        applications.find(
+          (a) =>
+            a.applicationId ===
+            applicationId
+        );
+
+      if (!app) {
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          `Vacate Room ${app.allottedRoomNo} for ${app.name} (${app.enrolmentNo})?\n\n` +
+          `This cannot be undone. If a student is waitlisted for ${app.hostel} / ${app.roomType}, ` +
+          `they will be automatically allotted this room and emailed their allotment letter.`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      const row =
+        document.querySelector(
+          `tr[data-application-id="${CSS.escape(applicationId)}"]`
+        );
+
+      const btn =
+        row?.querySelector(
+          '[data-role="vacate-btn"]'
+        );
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Vacating…';
+      }
+
+      clearAlert(alertRoot);
+
+      adminFetch(
+        'admin/vacateRoom',
+        { applicationId }
+      )
+
+      .then(
+        (result) => {
+
+          const promotedMessage =
+            result.promoted
+              ? ` ${result.promoted.name} (${result.promoted.enrolmentNo}) was automatically promoted from the waitlist into Room ${result.promoted.roomNo} and emailed their allotment letter.`
+              : ' No one was waitlisted in this hostel/room-type pool — the room is now open.';
+
+          showAlert(
+            alertRoot,
+            {
+              title: 'Room vacated',
+              message:
+                `${result.vacated.name} (${result.vacated.enrolmentNo}) vacated Room ${result.vacated.roomNo}.` +
+                promotedMessage,
+              tone: 'info'
+            }
+          );
+
+          return refreshDashboard();
+
+        }
+      )
+
+      .catch(
+        (err) => {
+
+          showAlert(
+            alertRoot,
+            {
+              title: 'Could not vacate room',
+              message: err.message,
+              tone: 'danger'
+            }
+          );
+
+          return refreshDashboard();
+
+        }
+      );
+
+    }
+
+
+    /* ==========================================================
+       SHIFT ROOM MODAL
+       ========================================================== */
+
+    let shiftModalApplicationId = null;
+
+    const shiftModalOverlay =
+      document.getElementById('shift-modal-overlay');
+
+    const shiftRoomSelect =
+      document.getElementById('shift-room-select');
+
+    const shiftModalErrorEl =
+      document.getElementById('shift-modal-error');
+
+    const shiftModalConfirmBtn =
+      document.getElementById('shift-modal-confirm-btn');
+
+    function openShiftModal(applicationId) {
+
+      const app =
+        applications.find(
+          (a) =>
+            a.applicationId ===
+            applicationId
+        );
+
+      if (!app) {
+        return;
+      }
+
+      shiftModalApplicationId = applicationId;
+
+      // Only rooms in the SAME hostel + room type as the student's current
+      // room, excluding that current room itself, and only ones with a
+      // free seat — the admin picks from what's actually available rather
+      // than typing a room number blind (and shiftStudent.js enforces this
+      // same restriction server-side regardless).
+      const candidateRooms =
+        rooms.filter(
+          (r) =>
+            r.hostel === app.hostel &&
+            r.roomType === app.roomType &&
+            r.roomNo !== app.allottedRoomNo &&
+            (r.capacity - r.occupied) > 0
+        );
+
+      document.getElementById('shift-modal-student').textContent =
+        `${app.name} (${app.enrolmentNo}) — currently Room ${app.allottedRoomNo || '—'}, ${app.hostel} / ${app.roomType}`;
+
+      shiftModalErrorEl.textContent = '';
+
+      if (candidateRooms.length === 0) {
+
+        shiftRoomSelect.innerHTML =
+          '<option value="">No other rooms with space in this hostel/room-type pool</option>';
+
+        shiftRoomSelect.disabled = true;
+        shiftModalConfirmBtn.disabled = true;
+
+      } else {
+
+        shiftRoomSelect.disabled = false;
+        shiftModalConfirmBtn.disabled = false;
+
+        shiftRoomSelect.innerHTML =
+          candidateRooms
+            .map(
+              (r) =>
+                `<option value="${r.roomNo}">Room ${r.roomNo} — ${r.occupied}/${r.capacity} occupied (${r.capacity - r.occupied} free)</option>`
+            )
+            .join('');
+
+      }
+
+      shiftModalOverlay.classList.remove('hidden');
+
+    }
+
+    function closeShiftModal() {
+
+      shiftModalApplicationId = null;
+      shiftModalOverlay.classList.add('hidden');
+
+    }
+
+    function confirmShift() {
+
+      const applicationId = shiftModalApplicationId;
+      const newRoomNo = shiftRoomSelect.value;
+
+      if (!applicationId || !newRoomNo) {
+        return;
+      }
+
+      shiftModalConfirmBtn.disabled = true;
+      shiftModalConfirmBtn.textContent = 'Shifting…';
+      shiftModalErrorEl.textContent = '';
+
+      adminFetch(
+        'admin/shiftStudent',
+        { applicationId, newRoomNo }
+      )
+
+      .then(
+        (result) => {
+
+          closeShiftModal();
+
+          const roommateNote =
+            result.roommate && result.roommate.pairingBroken
+              ? ` Roommate pairing with ${result.roommate.name} (${result.roommate.enrolmentNo}) was broken — the target room didn't have 2 free seats.`
+              : result.roommate && result.roommate.movedTogether
+                ? ` Roommate ${result.roommate.name} (${result.roommate.enrolmentNo}) was moved together with them.`
+                : '';
+
+          showAlert(
+            alertRoot,
+            {
+              title: 'Student shifted',
+              message:
+                `${result.enrolmentNo} moved from Room ${result.oldRoomNo} to Room ${result.newRoomNo}.` +
+                roommateNote,
+              tone: 'info'
+            }
+          );
+
+          return refreshDashboard();
+
+        }
+      )
+
+      .catch(
+        (err) => {
+
+          shiftModalErrorEl.textContent = err.message;
+
+        }
+      )
+
+      .finally(
+        () => {
+
+          shiftModalConfirmBtn.disabled = false;
+          shiftModalConfirmBtn.textContent = 'Confirm Shift';
+
+        }
+      );
+
+    }
+
+    document
+      .getElementById('shift-modal-cancel-btn')
+      .addEventListener('click', closeShiftModal);
+
+    document
+      .getElementById('shift-modal-confirm-btn')
+      .addEventListener('click', confirmShift);
+
+    // Click on the dark backdrop (not the panel itself) also cancels —
+    // same "escape hatch" expectation as any other modal.
+    shiftModalOverlay.addEventListener(
+      'click',
+      (event) => {
+        if (event.target === shiftModalOverlay) {
+          closeShiftModal();
+        }
+      }
+    );
 
   </script>
 

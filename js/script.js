@@ -538,7 +538,7 @@
     ==========================================================================
     Signature element for Status.html: three stages rendered as numbered
     doors along a hallway. statusKey is one of:
-      'submitted' | 'verification' | 'allotted' | 'waitlisted'
+      'submitted' | 'verification' | 'allotted' | 'waitlisted' | 'vacated'
     (derived server-side data -> this key by deriveCorridorStatus() in
     Status.html, since VerificationStatus/AllotmentStatus are two separate
     columns, not one).
@@ -546,6 +546,7 @@
   function renderCorridor(containerEl, statusKey) {
     const stage3Label = statusKey === 'waitlisted' ? 'Waitlisted'
       : statusKey === 'allotted' ? 'Allotted'
+      : statusKey === 'vacated' ? 'Vacated'
       : 'Allotted / Waitlisted';
 
     const stages = [
@@ -554,7 +555,7 @@
       { n: 3, label: stage3Label }
     ];
 
-    const activeIndex = { submitted: 0, verification: 1, allotted: 2, waitlisted: 2 }[statusKey] ?? 0;
+    const activeIndex = { submitted: 0, verification: 1, allotted: 2, waitlisted: 2, vacated: 2 }[statusKey] ?? 0;
     const fillPct = [0, 50, 100][activeIndex];
 
     containerEl.innerHTML = `

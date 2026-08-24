@@ -91,6 +91,12 @@
     function deriveCorridorStatus(app) {
       if (app.allotmentStatus === 'Allotted') return 'allotted';
       if (app.allotmentStatus === 'Waitlisted') return 'waitlisted';
+      // 'Vacated' (api/admin/vacateRoom.js) must be checked before the
+      // verification fallback below — otherwise a vacated student (whose
+      // VerificationStatus stays 'Verified', untouched by vacating) would
+      // fall through to 'verification' and see "documents under review",
+      // which is wrong once a room has been allotted and vacated.
+      if (app.allotmentStatus === 'Vacated') return 'vacated';
       if (app.verificationStatus === 'Pending') return 'submitted';
       return 'verification';
     }
@@ -102,7 +108,8 @@
         submitted: 'Your application has been received and is queued for verification.',
         verification: 'The Hostel Office is verifying your documents. This usually takes a few working days.',
         allotted: 'A room has been allotted — details below.',
-        waitlisted: 'All seats matching your preference are full for now — you are on the waitlist.'
+        waitlisted: 'All seats matching your preference are full for now — you are on the waitlist.',
+        vacated: 'Your previously allotted room has been vacated. Contact the Hostel Office if you believe this is a mistake.'
       }[statusKey];
 
       statusRoot.innerHTML = `
@@ -184,6 +191,13 @@
             ${app.waitlistPosition
               ? `<div><p class="result-card__stat-label">Waitlist Position</p><p class="result-card__stat-value">#${app.waitlistPosition}</p></div>`
               : `<p class="text-muted">Your position will appear here once seats are finalised.</p>`}
+          </section>
+        `;
+      } else if (statusKey === 'vacated') {
+        slot.innerHTML = `
+          <section class="panel result-card">
+            <h2 class="panel__title" style="font-size: var(--text-base);">Room vacated</h2>
+            <p class="text-muted">Your hostel room has been recorded as vacated. Contact the Hostel Office if you believe this is a mistake.</p>
           </section>
         `;
       } else {

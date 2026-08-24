@@ -161,6 +161,37 @@ async function sendAllotmentEmail(applicationData, pdfBuffer) {
   });
 }
 
+/**
+ * Sends the room-reassignment notification, with a freshly generated
+ * allotment-letter PDF reflecting the NEW room, to `applicationData.StudentEmail`
+ * only. Distinct subject/body from sendAllotmentEmail() on purpose — this is
+ * a follow-up move of an already-allotted student (api/admin/shiftStudent.js),
+ * not a first-time "Allotment Confirmed" notice, and re-sending that subject
+ * line here would misleadingly read as a brand-new allotment.
+ */
+async function sendRoomChangeEmail(applicationData, pdfBuffer, { oldRoomNo, newRoomNo } = {}) {
+  const applicationId = applicationData.ApplicationID || '';
+  const name = applicationData.Name || 'Student';
+
+  const htmlBody = `
+    <p>Dear ${escapeHtml(name)},</p>
+    <p>Your hostel room assignment against Application ID <strong>${escapeHtml(applicationId)}</strong> has been
+      updated by the Hostel Office. You have been moved from room <strong>${escapeHtml(oldRoomNo || '—')}</strong>
+      to room <strong>${escapeHtml(newRoomNo || '—')}</strong>. Your updated allotment letter is attached as a PDF.</p>
+    <p>Please contact the Hostel Office if you have any questions about this change.</p>
+    <p>— GGSIPU Hostel Allocation Portal</p>
+  `.trim();
+
+  return sendEmailWithAttachment({
+    to: applicationData.StudentEmail,
+    subject: `Room Reassignment — ${applicationId}`,
+    htmlBody,
+    attachment: { filename: `Room-Reassignment-${applicationId || 'letter'}.pdf`, buffer: pdfBuffer },
+    context: 'sendRoomChangeEmail',
+    enrolmentNo: applicationData.EnrolmentNo
+  });
+}
+
 /** Minimal HTML-escaping for the two free-text values (Name, ApplicationID) interpolated into the bodies above. */
 function escapeHtml(value) {
   return String(value)
@@ -172,5 +203,6 @@ function escapeHtml(value) {
 
 module.exports = {
   sendApplicationConfirmationEmail,
-  sendAllotmentEmail
+  sendAllotmentEmail,
+  sendRoomChangeEmail
 };
