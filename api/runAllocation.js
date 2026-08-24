@@ -7,9 +7,11 @@
  * position, using the priority policy implemented in _lib/allocation.js —
  * see the long comment at the top of that file for exactly which tiers are
  * implemented and why (short version: a deliberately scoped-down 3-tier
- * version of GGSIPU's real 7-tier policy, because the form doesn't collect
- * the distance/residence-subcategory data the full policy needs — flagged
- * and decided on 2026-08-22 rather than guessed at silently).
+ * version of GGSIPU's real 7-tier policy — flagged and decided on
+ * 2026-08-22 rather than guessed at silently. Distance-from-residence is
+ * now collected and used as an intra-tier tiebreaker as of 2026-08-24, but
+ * the NCR sub-region / govt-transfer distinctions the real 7-tier structure
+ * itself needs still aren't).
  *
  * AUTH: shared-secret only (Authorization: Bearer <ADMIN_SECRET>). There's
  * no admin login system yet, so this is intentionally the simplest thing
@@ -192,7 +194,7 @@ async function runAllocation() {
 
     return {
       success: true,
-      policyNote: 'Scoped-down 3-tier priority order (PwBD > non-Delhi residence > Delhi), tiebreak by submission time — see the comment at the top of _lib/allocation.js for why the full 7-tier distance-based GGSIPU policy isn\'t implemented yet (DistanceFromResidence and the split residence categories it needs aren\'t collected by the form).',
+      policyNote: 'Scoped-down 3-tier priority order (PwBD > non-Delhi residence > Delhi); within each tier, farther self-declared DistanceFromResidenceKm wins, then earlier submission time — see the comment at the top of _lib/allocation.js for why the full 7-tier GGSIPU policy (which also splits by NCR sub-region and govt-transfer status) isn\'t implemented yet.',
       summary: {
         totalCandidates: candidates.length,
         totalAllotted: allResults.filter((r) => r.status === 'Allotted').length,

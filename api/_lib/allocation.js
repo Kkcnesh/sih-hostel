@@ -30,9 +30,6 @@
  *     "Outside Delhi but still within NCR" (tier 4), and "Transferred"
  *     doesn't say whether the transfer origin was outside NCR (tier 3) or
  *     just outside Delhi (tier 5).
- *   - There is no distance-from-residence field (or even a pincode/city to
- *     derive one from) anywhere in the 43-column Applications schema, so
- *     intra-tier distance ranking (tiers 2/4/6) isn't possible either.
  *
  * Per an explicit decision on 2026-08-22 (rather than inventing placeholder
  * distance data or silently dropping tiers), this implements a collapsed
@@ -42,16 +39,37 @@
  *                       priorityTier() below for a caveat on this mapping)
  *   2. Non-Delhi      — CategoryResidence !== 'Delhi' (i.e. "Outside Delhi"
  *                       and "Transferred" combined — they can't be told
- *                       apart or distance-ranked with current data)
+ *                       apart with current data)
  *   3. Delhi          — CategoryResidence === 'Delhi'
- * Within each tier: earlier SubmissionTimestamp wins (ties broken further
- * by EnrolmentNo for full determinism).
  *
- * To upgrade to the real 7-tier policy later: add a DistanceFromResidence
- * (or residence pincode) field to the application form + schema, split the
- * category radio into the 5 real residence buckets, then rewrite
- * priorityTier()/compareCandidates() below — allocatePool() itself doesn't
- * need to change, since it just consumes whatever order it's given.
+ * DISTANCE TIEBREAKING — added 2026-08-24, per the real policy's own logic
+ * (all three of tiers 2/4/6 above rank by distance from residence to EDC).
+ * The application form now collects a self-declared DistanceFromResidenceKm
+ * (see schema.js's APPLICATIONS_COLUMNS comment for why it's self-declared
+ * rather than locked, same as CategoryResidence). WITHIN each of the 3
+ * tiers above, candidates now sort by:
+ *   1. DistanceFromResidenceKm, descending (farther residence = higher
+ *      priority — matches the real brochure's ranking direction)
+ *   2. SubmissionTimestamp, ascending (earlier wins) — used whenever
+ *      distance is equal, or missing/invalid on either side (see
+ *      parseDistanceKm() below)
+ *   3. EnrolmentNo, ascending — final deterministic tiebreak
+ *
+ * STILL NOT IMPLEMENTED (the gap between this and the real 7-tier policy):
+ *   - The tiers themselves are still the collapsed 3, not the real 7 —
+ *     "Outside Delhi-NCR" vs "Outside Delhi but within NCR" (tiers 2 vs 4)
+ *     still can't be told apart, because CategoryResidence has no NCR
+ *     sub-region distinction and the form doesn't collect one.
+ *   - The two "govt-transferred" variants (tiers 3 and 5) aren't split out
+ *     from their non-transferred counterparts — CategoryResidence's
+ *     "Transferred" value doesn't record whether the transfer origin was
+ *     outside NCR or just outside Delhi.
+ * To close those gaps: split the CategoryResidence radio into the 5 real
+ * residence buckets (needs an NCR/non-NCR distinction, likely from the
+ * residence address's district/state already collected on the Family
+ * step) and rewrite priorityTier() below — compareCandidates()'s distance
+ * tiebreak and allocatePool() itself don't need to change either way, since
+ * they just consume whatever tier/order they're given.
  * ============================================================================
  */
 
@@ -85,10 +103,55 @@ function priorityTier(candidate) {
   return 3;
 }
 
-/** Sort comparator: tier, then SubmissionTimestamp (ISO strings sort chronologically as plain strings), then EnrolmentNo as a final deterministic tiebreak. */
+/**
+ * Defensively parses DistanceFromResidenceKm into a finite positive Number,
+ * or null if it's missing/blank, non-numeric, zero, or negative (e.g. a
+ * test row seeded before this column existed, or a row that somehow
+ * bypassed the form's now-required field). Sheets rows always arrive as
+ * plain strings (see parseSheetDate()'s doc comment in schema.js) — Number()
+ * on a non-numeric string produces NaN, and NaN compared with `<`/`>` is
+ * ALWAYS false, which would silently corrupt sort order (never throw)
+ * if compareCandidates() below compared raw values directly. Returning
+ * null instead lets the comparator treat "no usable distance" as its own
+ * explicit case — sorts last within its tier — rather than as a number.
+ */
+function parseDistanceKm(candidate) {
+  const value = Number(candidate.DistanceFromResidenceKm);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * Sort comparator: tier first, then — WITHIN a tier — DistanceFromResidenceKm
+ * descending (farther residence ranks higher, matching the real GGSIPU
+ * policy's own ranking direction; see the file header comment), then
+ * SubmissionTimestamp ascending (ISO strings sort chronologically as plain
+ * strings) as the tiebreak whenever distance is equal, then EnrolmentNo as
+ * a final deterministic tiebreak.
+ *
+ * Both distances are parsed with parseDistanceKm() (never compared as raw
+ * strings/values) specifically to avoid two classes of bug this file has
+ * already shipped once each: (1) comparing "9" > "10" as strings is true,
+ * as numbers is false — silently misordering every run; (2) a missing/
+ * invalid distance producing NaN would make every `<`/`>` comparison
+ * against it false, which falls through to neither branch below and
+ * effectively freezes that candidate's position rather than sorting it
+ * last. A row with an unusable distance (missing/invalid/zero) is always
+ * sorted after one with a usable distance, regardless of the invalid row's
+ * raw value — never a crash, never NaN-driven chaos.
+ */
 function compareCandidates(a, b) {
   const tierDiff = priorityTier(a) - priorityTier(b);
   if (tierDiff !== 0) return tierDiff;
+
+  const distanceA = parseDistanceKm(a);
+  const distanceB = parseDistanceKm(b);
+  if (distanceA === null && distanceB !== null) return 1; // a has no usable distance -> sorts after b
+  if (distanceA !== null && distanceB === null) return -1; // b has no usable distance -> sorts after a
+  if (distanceA !== null && distanceB !== null && distanceA !== distanceB) {
+    return distanceB - distanceA; // descending: farther residence first
+  }
+  // Equal (usable) distances, or both unusable — fall through to timestamp.
+
   const timeDiff = String(a.SubmissionTimestamp || '').localeCompare(String(b.SubmissionTimestamp || ''));
   if (timeDiff !== 0) return timeDiff;
   return String(a.EnrolmentNo || '').localeCompare(String(b.EnrolmentNo || ''));
@@ -215,6 +278,7 @@ module.exports = {
   HOSTELS,
   ROOM_TYPES,
   priorityTier,
+  parseDistanceKm,
   compareCandidates,
   sortRoomsByRoomNo,
   allocatePool

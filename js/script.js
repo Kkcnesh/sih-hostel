@@ -278,6 +278,15 @@
     return /^\d{6,15}$/.test(value.trim());
   }
 
+  // Upper bound of 5000 mirrors validateApplicationFields()'s server-side
+  // check (api/_lib/schema.js) — an obvious-typo catch, not a real
+  // geographic limit, so it stays loose enough for genuine long-distance
+  // students rather than blocking real applications.
+  function isValidDistance(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 && numeric <= 5000;
+  }
+
   /** Shows/clears a plain-language inline error under a .field wrapper. */
   function setFieldError(fieldEl, message) {
     const errorEl = fieldEl.querySelector('.field__error');
@@ -330,7 +339,7 @@
   /* ==========================================================================
     9. DOCUMENT UPLOADER COMPONENT
     ==========================================================================
-    Builds all six document uploaders from DOCUMENT_CONFIG and wires up a
+    Builds every document uploader from DOCUMENT_CONFIG and wires up a
     real upload: read the file as base64 in the browser, send it to
     uploadDocument() (Code.gs), which drops it into the student's Drive
     folder and returns the file's URL. Marksheets allows multiple files —
@@ -343,14 +352,16 @@
       help: 'Recent photo — JPG or PNG, under 5 MB' },
     { key: 'aadhar', serverDocType: 'Aadhar', label: 'Aadhaar card copy', required: true, accept: 'image/*,application/pdf', multiple: false,
       help: 'Both sides — JPG, PNG or PDF, under 5 MB' },
-    { key: 'marksheets', serverDocType: 'Marksheets', label: 'Marksheets (10th, 12th & preceding semester)', required: true, accept: 'image/*,application/pdf', multiple: true,
+    { key: 'marksheets', serverDocType: 'Marksheets', label: 'Marksheets (12th & preceding semester)', required: true, accept: 'image/*,application/pdf', multiple: false,
       help: 'You can select more than one file at once' },
-    { key: 'medical', serverDocType: 'MedicalCert', label: 'Medical certificate', required: true, accept: 'image/*,application/pdf', multiple: false,
+    { key: 'medical', serverDocType: 'MedicalCert', label: 'Medical certificate (PDF)', required: true, accept: 'image/*,application/pdf', multiple: false,
       help: 'Issued by a registered medical practitioner' },
-    { key: 'guardianConsent', serverDocType: 'GuardianConsent', label: 'Local guardian consent form', required: true, accept: 'image/*,application/pdf', multiple: false,
+    { key: 'guardianConsent', serverDocType: 'GuardianConsent', label: 'Parent consent form (PDF)', required: true, accept: 'image/*,application/pdf', multiple: false,
       help: 'Signed by your local guardian' },
-    { key: 'antiRagging', serverDocType: 'AntiRagging', label: 'Anti-Ragging affidavit', required: true, accept: 'image/*,application/pdf', multiple: false,
-      help: 'Downloadable from the UGC Anti-Ragging portal' }
+    { key: 'antiRagging', serverDocType: 'AntiRagging', label: 'Anti-Ragging affidavit (PDF)', required: true, accept: 'image/*,application/pdf', multiple: false,
+      help: 'Downloadable from the UGC Anti-Ragging portal' },
+    { key: 'addressProof', serverDocType: 'AddressProof', label: 'Address proof (PDF)', required: true, accept: 'image/*,application/pdf', multiple: false,
+      help: 'Electricity, water, telephone or piped-gas bill — not older than 3 months' }
   ];
 
   const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB — Code.gs enforces this again server-side, don't only trust this check

@@ -19,6 +19,12 @@
  * check right before buildApplicationRow() below for why. CategoryResidence
  * (Delhi/Outside Delhi/Transferred) is NOT locked as of this change —
  * deliberately still self-declared by the client, out of scope for this pass.
+ * DistanceFromResidenceKm (added 2026-08-24) is self-declared the same way —
+ * there's no Eligibility record to check a residence distance against, so
+ * it's trusted from the client like CategoryResidence rather than locked
+ * like HostelChoice/CategoryReservation. See _lib/allocation.js for how it's
+ * used (an intra-tier tiebreaker) and its AddressProofDriveLink counterpart
+ * for the (manual, admin-side) cross-check.
  *
  * KNOWN LIMITATION — race condition, flagged rather than silently dropped:
  * Code.gs used LockService.getScriptLock() to make the whole "check

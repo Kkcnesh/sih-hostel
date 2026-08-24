@@ -66,7 +66,26 @@ const APPLICATIONS_COLUMNS = [
   // these are the only guardian columns populated going forward.
   'GuardianName', 'GuardianRelationship', 'GuardianPhone',
   'GuardianHouseNo', 'GuardianStreetArea', 'GuardianCity',
-  'GuardianDistrict', 'GuardianState', 'GuardianPincode', 'GuardianLandmark'
+  'GuardianDistrict', 'GuardianState', 'GuardianPincode', 'GuardianLandmark',
+
+  // ---- Appended 2026-08-24 for distance-based allocation tiebreaking ----
+  // Same append-only, never-reorder rule as the 2026-08-23 block above —
+  // getSheetRows()/writeRowAt() read/write by column POSITION, not header
+  // name. The live sheet's header row needs these two appended in this
+  // same order — see SETUP.md.
+  //
+  // DistanceFromResidenceKm is self-declared by the student, same trust
+  // model as CategoryResidence above (see buildApplicationRow() below) —
+  // there's no Eligibility record to check a residence distance against,
+  // so unlike CategoryReservation/HostelChoice it can't be locked/derived
+  // server-side. Used by _lib/allocation.js as an intra-tier tiebreaker
+  // (farther residence ranks higher, matching GGSIPU's real distance-based
+  // policy) — see that file's header comment for the full policy context.
+  // AddressProofDriveLink follows the exact same pattern as the six
+  // Drive-link columns above — an admin cross-checks the declared distance
+  // against this document manually via the existing verification toggle;
+  // there is no automated geocoding/mapping check.
+  'DistanceFromResidenceKm', 'AddressProofDriveLink'
 ];
 
 // The only two values VerificationStatus is ever set to — confirmed against
@@ -89,7 +108,8 @@ const DOC_TYPE_COLUMNS = {
   Marksheets: 'MarksheetsDriveLink',
   MedicalCert: 'MedicalCertDriveLink',
   GuardianConsent: 'GuardianConsentDriveLink',
-  AntiRagging: 'AntiRaggingDriveLink'
+  AntiRagging: 'AntiRaggingDriveLink',
+  AddressProof: 'AddressProofDriveLink'
 };
 
 // Reverse of the client's DOCUMENT_CONFIG[i].serverDocType map (js/script.js) —
@@ -101,7 +121,8 @@ const SERVER_TO_CLIENT_DOC_KEY = {
   Marksheets: 'marksheets',
   MedicalCert: 'medical',
   GuardianConsent: 'guardianConsent',
-  AntiRagging: 'antiRagging'
+  AntiRagging: 'antiRagging',
+  AddressProof: 'addressProof'
 };
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB — mirrors the client-side limit; don't only trust the client
@@ -268,10 +289,26 @@ function validateApplicationFields(formData) {
       errors[path] = `${label} must be a valid 10-digit mobile number.`;
     }
   };
+  // Self-declared distance (see DistanceFromResidenceKm's schema comment) —
+  // upper bound of 5000 is just an obvious-typo catch (e.g. a stray zero),
+  // not a real geographic limit, so it must stay loose enough for genuine
+  // long-distance students (Kanyakumari to Delhi is ~2700km).
+  const requireDistance = (path, label) => {
+    const value = getPath(formData, path);
+    if (value === undefined || value === null || String(value).trim() === '') {
+      errors[path] = `${label} is required.`;
+      return;
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0 || numeric > 5000) {
+      errors[path] = `${label} must be a number between 1 and 5000.`;
+    }
+  };
 
   requireText('nationality', 'Nationality');
   requireText('dateOfJoining', 'Date of joining university');
   requireText('category', 'Category');
+  requireDistance('distanceFromResidenceKm', 'Distance from your residence to campus');
   requireText('reservationCategory', 'Reservation category');
   requireText('fatherName', "Father's name");
   requireText('motherName', "Mother's name");
@@ -302,7 +339,7 @@ function validateApplicationFields(formData) {
   requireText('hostel', 'Hostel');
   requireText('roomType', 'Room type preference');
 
-  ['photo', 'aadhar', 'marksheets', 'medical', 'guardianConsent', 'antiRagging'].forEach((key) => {
+  ['photo', 'aadhar', 'marksheets', 'medical', 'guardianConsent', 'antiRagging', 'addressProof'].forEach((key) => {
     if (!getPath(formData, `documents.${key}.driveLink`)) {
       errors[`documents.${key}`] = `The ${key} document is required.`;
     }
@@ -330,6 +367,13 @@ function buildApplicationRow(formData, elig, applicationId) {
     School: elig.School,
     DateOfJoiningUniversity: formData.dateOfJoining,
     CategoryResidence: formData.category,
+    // Self-declared, like CategoryResidence just above — see this column's
+    // doc comment in APPLICATIONS_COLUMNS for why it isn't locked against
+    // Eligibility. Coerced to a Number (not stored as the raw string) so
+    // allocation.js's sort never has to coerce a sheet-string mid-compare —
+    // validateApplicationFields() above has already confirmed this parses
+    // to a finite number in (0, 5000] by the time this runs.
+    DistanceFromResidenceKm: Number(formData.distanceFromResidenceKm),
     // Locked/derived from Eligibility, not read from the client — same
     // override pattern as Name/DOB/Course/School/HostelChoice above. Unlike
     // HostelChoice, an unrecognized/blank value here defaults to 'GEN'
@@ -378,6 +422,7 @@ function buildApplicationRow(formData, elig, applicationId) {
     MedicalCertDriveLink: driveLink('medical'),
     GuardianConsentDriveLink: driveLink('guardianConsent'),
     AntiRaggingDriveLink: driveLink('antiRagging'),
+    AddressProofDriveLink: driveLink('addressProof'),
     SubmissionTimestamp: new Date().toISOString(),
     VerificationStatus: 'Pending',
     AllotmentStatus: 'Not Processed',

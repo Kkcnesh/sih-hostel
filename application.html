@@ -314,6 +314,29 @@
                 <p class="field__error"></p>
               </fieldset>
 
+              <!-- Self-declared, like Domicile above — not locked against any
+                   record (there isn't one to check it against). Used as an
+                   intra-tier tiebreaker during allocation (farther residence
+                   ranks higher, matching GGSIPU's real distance-based policy)
+                   — see api/_lib/allocation.js. The Address Proof upload on
+                   the Documents step lets an admin manually cross-check this
+                   during verification; there's no automated distance check. -->
+              <div class="field" id="field-distanceFromResidenceKm">
+                <label class="field__label" for="distanceFromResidenceKm">
+                  Distance from your permanent residence to GGSIPU East Delhi Campus (km) <span class="field__required">*</span>
+                </label>
+                <input
+                  class="field__control"
+                  type="number"
+                  id="distanceFromResidenceKm"
+                  min="1"
+                  max="5000"
+                  step="0.1"
+                  placeholder="e.g. 12"
+                >
+                <p class="field__error"></p>
+              </div>
+
               <!-- Locked, not a choice: reservation category is derived from
                    the student's Eligibility record (see
                    deriveCategoryReservation() in api/_lib/schema.js),
@@ -1116,6 +1139,11 @@
     id: 'studentEmail',
     validator: isValidEmail,
     invalidMsg: 'Enter a valid email address.'
+  },
+  {
+    id: 'distanceFromResidenceKm',
+    validator: isValidDistance,
+    invalidMsg: 'Enter a distance in km between 1 and 5000.'
   }
 ];
     const FAMILY_REQUIRED_FIELDS = [
@@ -1209,6 +1237,9 @@
     );
     if (el) el.checked = true;
   }
+
+  document.getElementById('distanceFromResidenceKm').value =
+    draft.distanceFromResidenceKm ?? '';
 
   // Locked — always the student's real Eligibility-derived value, never
   // the draft (there's nothing left for the student to choose here).
@@ -1321,6 +1352,7 @@
     studentEmail: document.getElementById('studentEmail').value,
 
     category: document.querySelector('input[name="category"]:checked')?.value ?? '',
+    distanceFromResidenceKm: document.getElementById('distanceFromResidenceKm').value,
     // Re-derived from student, not read off the (disabled, display-only)
     // #reservationCategory input — the server ignores whatever's sent here
     // anyway and re-derives it independently in /api/submitApplication, so
@@ -1425,6 +1457,7 @@
         field('Course & School', d.courseSchool, true),
         field('Date of Joining University', d.dateOfJoining ? formatDateDisplay(d.dateOfJoining) : ''),
         field('Category', d.category),
+        field('Distance from Residence to Campus (km)', d.distanceFromResidenceKm),
         field('Reservation Category', d.reservationCategory),
         field('Your Mobile', d.studentMobile),
         field('Your Email', d.studentEmail),
