@@ -14,7 +14,7 @@
 
 const { logEvent } = require('./_lib/sheets');
 const { getOrCreateStudentFolder, uploadFile } = require('./_lib/drive');
-const { DOC_TYPE_COLUMNS, MAX_UPLOAD_BYTES, ALLOWED_MIME_TYPES } = require('./_lib/schema');
+const { DOC_TYPE_COLUMNS, MAX_UPLOAD_BYTES, ALLOWED_MIME_TYPES, PDF_ONLY_DOC_TYPES } = require('./_lib/schema');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -40,6 +40,16 @@ async function uploadDocument({ enrolmentNo, docType, base64Data, fileName, mime
     }
     if (ALLOWED_MIME_TYPES.indexOf(mimeType) === -1) {
       return { success: false, error: 'Only JPG, PNG or PDF files are accepted.' };
+    }
+    // The one that actually matters for security — the client's `accept`
+    // attribute and pre-upload check (js/script.js) are UX only, never
+    // trusted alone. Checked against the browser-declared MIME type, not
+    // the filename extension, same discipline as the ALLOWED_MIME_TYPES
+    // check just above. A distinct error message from the general
+    // "only JPG/PNG/PDF" one above, so a student who picked, say, a .docx
+    // for Marksheets sees why specifically, not a generic rejection.
+    if (PDF_ONLY_DOC_TYPES.includes(docType) && mimeType !== 'application/pdf') {
+      return { success: false, error: `${docType} must be uploaded as a PDF file.` };
     }
 
     let buffer;

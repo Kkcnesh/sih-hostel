@@ -164,6 +164,20 @@ const SERVER_TO_CLIENT_DOC_KEY = {
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB — mirrors the client-side limit; don't only trust the client
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+
+// Document types (DOC_TYPE_COLUMNS keys) that must be a PDF specifically —
+// added 2026-08-24. Photo stays image-only (never in this list, and never
+// should be — see js/script.js's DOCUMENT_CONFIG, which mirrors this same
+// list client-side via each entry's `requiresPdf`). Aadhar is deliberately
+// NOT in this list either — an Aadhaar card is commonly uploaded as a
+// photo/scan, not necessarily a PDF, so it stays accepting both image and
+// PDF like before. uploadDocument.js is the actual enforcement point (this
+// is the one that matters for security — the client-side `accept`
+// attribute and pre-upload check in js/script.js are just UX, never
+// trusted alone); the MIME type checked is the browser-declared
+// `mimeType`, not the filename extension.
+const PDF_ONLY_DOC_TYPES = ['Marksheets', 'MedicalCert', 'GuardianConsent', 'AntiRagging', 'AddressProof'];
+
 const DRIVE_ROOT_FOLDER_NAME = 'Hostel Applications';
 
 /** 0-indexed column position of `name` within a columns array — throws on a typo instead of silently reading the wrong cell. */
@@ -515,6 +529,7 @@ module.exports = {
   SERVER_TO_CLIENT_DOC_KEY,
   MAX_UPLOAD_BYTES,
   ALLOWED_MIME_TYPES,
+  PDF_ONLY_DOC_TYPES,
   DRIVE_ROOT_FOLDER_NAME,
   columnIndex,
   rowToObject,

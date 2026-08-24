@@ -18,10 +18,22 @@
  * that isn't "wide open" — set ADMIN_SECRET in Vercel and share it only
  * with whoever runs allocations. See SETUP.md.
  *
+ * VERIFICATION GATING (added 2026-08-24): a candidate must have BOTH
+ * AllotmentStatus === "Not Processed" AND VerificationStatus === "Verified"
+ * to be processed this run. An unverified "Not Processed" row is simply
+ * left alone — still "Not Processed", not "Waitlisted" — a student who
+ * hasn't been verified yet hasn't been rejected, they just haven't been
+ * reached; conflating the two would misreport "no seat available" for
+ * someone the admin hasn't even looked at. This was a deliberately
+ * unimplemented open question in an earlier pass (rooms were being
+ * allocated to unverified applicants) — see admin/vacateRoom.js's
+ * auto-promotion for the same gating applied on that path.
+ *
  * IDEMPOTENCY / "FIRST-RUN LOCKS IN" — read before relying on this for a
  * real multi-round admissions cycle:
- * Only rows with AllotmentStatus === "Not Processed" are read as
- * candidates, and RoomInventory's Occupied counts (read fresh every run)
+ * Only rows with AllotmentStatus === "Not Processed" (and, as of the
+ * verification gating above, VerificationStatus === "Verified") are read
+ * as candidates, and RoomInventory's Occupied counts (read fresh every run)
  * already reflect every previous run's allotments — so running this again
  * after new applications arrive allocates the *new* rows into whatever
  * capacity is left, without touching or re-ranking anyone already
@@ -76,7 +88,7 @@ async function runAllocation() {
       getSheetRows(SHEET_NAMES.ROOM_INVENTORY, ROOM_INVENTORY_COLUMNS)
     ]);
 
-    const candidates = applicationRows.filter((row) => row.AllotmentStatus === 'Not Processed');
+    const candidates = applicationRows.filter((row) => row.AllotmentStatus === 'Not Processed' && row.VerificationStatus === 'Verified');
 
     const pools = [];
     const warnings = [];

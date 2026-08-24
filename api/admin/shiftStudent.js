@@ -3,13 +3,16 @@
  * POST /api/admin/shiftStudent
  * ============================================================================
  * Manually moves an already-Allotted student into a different room —
- * RESTRICTED to a room within the exact same Hostel+RoomType pool as their
- * current room. This is a hard restriction, not a soft warning: shifting
- * across hostel or room type through this endpoint would bypass gender
- * segregation (Hostel is derived from Eligibility.Gender — see
- * _lib/schema.js's deriveHostelFromGender()) and the student's stated
- * RoomTypePreference, both of which the allocation engine itself protects.
- * Admin-only (see _lib/adminAuth.js).
+ * RESTRICTED to the student's own Hostel; RoomType is free to change
+ * (loosened 2026-08-24 — a same-hostel Triple-sharing<->4-sharing shift is
+ * now allowed). The Hostel restriction is the one that's a hard rule, not a
+ * soft warning, and stays exactly as strict as ever: Hostel is derived from
+ * Eligibility.Gender (see _lib/schema.js's deriveHostelFromGender()), so
+ * shifting across hostel through this endpoint would bypass gender
+ * segregation — that one must never be relaxed. RoomType no longer gets the
+ * same protection because it's just the student's own stated preference,
+ * not a safety boundary; an admin overriding it on request is a normal,
+ * legitimate use of this endpoint. Admin-only (see _lib/adminAuth.js).
  *
  * Request body: { applicationId, newRoomNo }
  *
@@ -76,7 +79,7 @@ module.exports = async function handler(req, res) {
 
     const oldRoomNo = student.AllottedRoomNo;
     const hostel = student.HostelChoice;
-    const roomType = student.RoomTypePreference;
+    const oldRoomType = student.RoomTypePreference;
 
     const newRoomRow = roomRows.find((r) => r.RoomNo === newRoomNo);
     if (!newRoomRow) {
@@ -87,13 +90,19 @@ module.exports = async function handler(req, res) {
       res.status(400).json({ success: false, error: `Student is already in room ${oldRoomNo} — nothing to shift.` });
       return;
     }
-    if (newRoomRow.Hostel !== hostel || newRoomRow.RoomType !== roomType) {
+    // Hostel is the one hard rule (gender segregation) — never relaxed.
+    // RoomType is intentionally NOT checked here (loosened 2026-08-24) — a
+    // same-hostel Triple-sharing<->4-sharing shift is a legitimate admin
+    // override of the student's own stated preference, not a boundary this
+    // endpoint needs to protect.
+    if (newRoomRow.Hostel !== hostel) {
       res.status(400).json({
         success: false,
-        error: `Room ${newRoomNo} is ${newRoomRow.Hostel} / ${newRoomRow.RoomType} — can only shift within the student's own pool (${hostel} / ${roomType}).`
+        error: `Room ${newRoomNo} is in ${newRoomRow.Hostel} — can only shift within the student's own hostel (${hostel}).`
       });
       return;
     }
+    const newRoomType = newRoomRow.RoomType;
 
     const newRoomCapacity = Number(newRoomRow.Capacity || 0);
     const newRoomOccupied = Number(newRoomRow.Occupied || 0);
@@ -129,11 +138,19 @@ module.exports = async function handler(req, res) {
     const seatsToMove = movingTogether ? 2 : 1;
 
     const writes = [];
-    const updatedStudentRow = { ...student, AllottedRoomNo: newRoomNo };
+    // RoomTypePreference is updated to match the room the student is
+    // ACTUALLY landing in, not left at their old stated preference — it's
+    // not just display text: vacateRoom.js's auto-promotion matches a
+    // freed room's waitlist pool by HostelChoice+RoomTypePreference, and
+    // admin/listApplications.js shows this column directly. Leaving it
+    // stale after a cross-type shift would mean a future vacate on this
+    // exact student pulls from the WRONG pool's waitlist, and the admin
+    // table would keep showing a room type they're no longer actually in.
+    const updatedStudentRow = { ...student, AllottedRoomNo: newRoomNo, RoomTypePreference: newRoomType };
     let roommateResult = null;
 
     if (roommateRow && movingTogether) {
-      const updatedRoommateRow = { ...roommateRow, AllottedRoomNo: newRoomNo };
+      const updatedRoommateRow = { ...roommateRow, AllottedRoomNo: newRoomNo, RoomTypePreference: newRoomType };
       writes.push(writeRowAt(SHEET_NAMES.APPLICATIONS, APPLICATIONS_COLUMNS, roommateRow._row, updatedRoommateRow));
       roommateResult = { enrolmentNo: roommateRow.EnrolmentNo, name: roommateRow.Name, movedTogether: true, pairingBroken: false };
     } else if (roommateRow && !movingTogether) {
@@ -152,7 +169,7 @@ module.exports = async function handler(req, res) {
     writes.push(
       generateAllotmentPDF(updatedStudentRow, {
         hostel,
-        roomType,
+        roomType: newRoomType,
         roomNo: newRoomNo,
         roommateName: movingTogether ? roommateRow.Name : ''
       })
@@ -167,13 +184,14 @@ module.exports = async function handler(req, res) {
       applicationId: student.ApplicationID,
       enrolmentNo: student.EnrolmentNo,
       hostel,
-      roomType,
+      oldRoomType,
+      newRoomType,
       oldRoomNo,
       newRoomNo,
       roommate: roommateResult,
       rooms: {
         old: { roomNo: oldRoomNo, capacity: Number(oldRoomRow.Capacity || 0), occupied: finalOldOccupied },
-        new: { roomNo: newRoomNo, capacity: newRoomCapacity, occupied: finalNewOccupied }
+        new: { roomNo: newRoomNo, roomType: newRoomType, capacity: newRoomCapacity, occupied: finalNewOccupied }
       }
     });
   } catch (err) {

@@ -396,20 +396,26 @@
     links are joined into one comma-separated string, since the Applications
     sheet has a single MarksheetsDriveLink cell.
     ========================================================================== */
+  // `requiresPdf: true` mirrors api/_lib/schema.js's PDF_ONLY_DOC_TYPES
+  // (added 2026-08-24) — keep both lists in sync if either changes. This
+  // client-side copy (accept attribute + the pre-upload check in
+  // buildUploaderNode() below) is UX only; uploadDocument.js's own check
+  // is the one that actually enforces it, since a client-side-only rule is
+  // trivially bypassed by calling the API directly.
   const DOCUMENT_CONFIG = [
     { key: 'photo', serverDocType: 'Photo', label: 'Passport-size photo', required: true, accept: 'image/*', multiple: false,
       help: 'Recent photo — JPG or PNG, under 5 MB' },
     { key: 'aadhar', serverDocType: 'Aadhar', label: 'Aadhaar card copy', required: true, accept: 'image/*,application/pdf', multiple: false,
       help: 'Both sides — JPG, PNG or PDF, under 5 MB' },
-    { key: 'marksheets', serverDocType: 'Marksheets', label: 'Marksheets (12th & preceding semester)', required: true, accept: 'image/*,application/pdf', multiple: false,
+    { key: 'marksheets', serverDocType: 'Marksheets', label: 'Marksheets (12th & preceding semester)', required: true, accept: 'application/pdf', multiple: false, requiresPdf: true,
       help: 'You can select more than one file at once - (PDF)' },
-    { key: 'medical', serverDocType: 'MedicalCert', label: 'Medical certificate', required: true, accept: 'image/*,application/pdf', multiple: false,
+    { key: 'medical', serverDocType: 'MedicalCert', label: 'Medical certificate', required: true, accept: 'application/pdf', multiple: false, requiresPdf: true,
       help: 'Issued by a registered medical practitioner - (PDF)' },
-    { key: 'guardianConsent', serverDocType: 'GuardianConsent', label: 'Parent consent form', required: true, accept: 'image/*,application/pdf', multiple: false,
+    { key: 'guardianConsent', serverDocType: 'GuardianConsent', label: 'Parent consent form', required: true, accept: 'application/pdf', multiple: false, requiresPdf: true,
       help: 'Signed by your parent - (PDF)' },
-    { key: 'antiRagging', serverDocType: 'AntiRagging', label: 'Anti-Ragging affidavit', required: true, accept: 'image/*,application/pdf', multiple: false,
+    { key: 'antiRagging', serverDocType: 'AntiRagging', label: 'Anti-Ragging affidavit', required: true, accept: 'application/pdf', multiple: false, requiresPdf: true,
       help: 'Downloadable from the UGC Anti-Ragging portal - (PDF)' },
-    { key: 'addressProof', serverDocType: 'AddressProof', label: 'Address proof', required: true, accept: 'image/*,application/pdf', multiple: false,
+    { key: 'addressProof', serverDocType: 'AddressProof', label: 'Address proof', required: true, accept: 'application/pdf', multiple: false, requiresPdf: true,
       help: 'Electricity, water, telephone or piped-gas bill — not older than 3 months - (PDF)' }
   ];
 
@@ -493,6 +499,18 @@
         statusEl.textContent = `"${invalid.name}" is over 5 MB — choose a smaller file.`;
         wrap.classList.add('uploader--error');
         return;
+      }
+      // UX only — uploadDocument.js re-checks this server-side against the
+      // real declared MIME type, which is the check that actually matters;
+      // this one just avoids a round trip for the common case of picking
+      // the wrong file by accident.
+      if (cfg.requiresPdf) {
+        const wrongType = files.find((f) => f.type !== 'application/pdf');
+        if (wrongType) {
+          statusEl.textContent = `"${wrongType.name}" isn't a PDF — this document must be uploaded as a PDF file.`;
+          wrap.classList.add('uploader--error');
+          return;
+        }
       }
       wrap.classList.remove('uploader--error', 'uploader--done');
       wrap.classList.add('uploader--uploading');

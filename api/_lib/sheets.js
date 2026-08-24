@@ -234,6 +234,71 @@ async function appendHeaderColumns(sheetName, newColumnNames) {
   headerCache.delete(sheetName);
 }
 
+const sheetIdCache = new Map(); // sheetName -> numeric sheetId
+
+/**
+ * Resolves a tab's NUMERIC sheetId (distinct from its name/title — every
+ * range string like `Applications!A2:Z` addresses a sheet by title, but
+ * structural operations in a batchUpdate request, like deleteDimension
+ * below, address it by this numeric ID instead). Cached per sheet name for
+ * the life of this warm instance, same pattern as headerCache above.
+ */
+async function getSheetId(sheetName) {
+  if (sheetIdCache.has(sheetName)) return sheetIdCache.get(sheetName);
+
+  const sheets = getSheetsClient();
+  const res = await sheets.spreadsheets.get({
+    spreadsheetId: getSpreadsheetId(),
+    fields: 'sheets.properties'
+  });
+
+  const found = (res.data.sheets || []).find((s) => s.properties.title === sheetName);
+  if (!found) {
+    throw new Error(`No sheet tab named "${sheetName}" found in the spreadsheet.`);
+  }
+
+  sheetIdCache.set(sheetName, found.properties.sheetId);
+  return found.properties.sheetId;
+}
+
+/**
+ * Permanently deletes one row from `sheetName` (1-indexed `rowNumber`,
+ * matching the `_row` convention getSheetRows() returns) — every row below
+ * it shifts up by one. Unlike writeRowAt() (which only ever overwrites
+ * cell VALUES, never removes a row), this is a real structural delete via
+ * spreadsheets.batchUpdate's deleteDimension request — the only way the
+ * Sheets API supports actually removing a row rather than blanking it.
+ * Added 2026-08-24 for api/admin/vacateRoom.js's full-deletion behavior.
+ *
+ * CALLER'S RESPONSIBILITY — READ BEFORE USING THIS: because every row
+ * below the deleted one shifts up, any OTHER `_row` position captured
+ * earlier in the same request (from the same getSheetRows() call) becomes
+ * stale for every row that was below this one. Always finish every other
+ * position-dependent write to this sheet FIRST (in their own Promise.all),
+ * and call deleteRow() only as the LAST write to this sheet in a request —
+ * see api/admin/vacateRoom.js for the pattern this was built for.
+ */
+async function deleteRow(sheetName, rowNumber) {
+  const sheets = getSheetsClient();
+  const sheetId = await getSheetId(sheetName);
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: getSpreadsheetId(),
+    resource: {
+      requests: [{
+        deleteDimension: {
+          range: {
+            sheetId,
+            dimension: 'ROWS',
+            startIndex: rowNumber - 1, // deleteDimension is 0-indexed
+            endIndex: rowNumber
+          }
+        }
+      }]
+    }
+  });
+}
+
 /** Appends one row to the end of a sheet — used for Logs, where row position/order doesn't matter. */
 async function appendRow(sheetName, rowValues) {
   const sheets = getSheetsClient();
@@ -263,6 +328,7 @@ module.exports = {
   appendHeaderColumns,
   getSheetRows,
   writeRowAt,
+  deleteRow,
   appendRow,
   logEvent
 };

@@ -487,6 +487,15 @@
       border-color: #D0D0D0;
     }
 
+    .admin-status-hint {
+      margin-top: 6px;
+
+      font-size: 11px;
+      font-weight: 700;
+
+      color: var(--danger);
+    }
+
 
     /* ==========================================================
        VERIFICATION BUTTON
@@ -1846,6 +1855,17 @@
       }
 
 
+      // A "Not Processed" applicant who isn't Verified yet will be silently
+      // skipped by Run Allocation (see runAllocation.js's candidate filter,
+      // added 2026-08-24) — flagged here so the admin can see WHY someone
+      // isn't getting a seat even though vacancies exist, rather than
+      // wondering if Run Allocation is broken.
+      const needsVerificationHint =
+        app.allotmentStatus === 'Not Processed' &&
+        app.verificationStatus !== 'Verified'
+          ? '<div class="admin-status-hint">Needs verification first</div>'
+          : '';
+
       return `
 
         <span
@@ -1858,6 +1878,8 @@
           ${app.allotmentStatus}
 
         </span>
+
+        ${needsVerificationHint}
 
       `;
 
@@ -2099,8 +2121,12 @@
       const confirmed =
         window.confirm(
           `Vacate Room ${app.allottedRoomNo} for ${app.name} (${app.enrolmentNo})?\n\n` +
-          `This cannot be undone. If a student is waitlisted for ${app.hostel} / ${app.roomType}, ` +
-          `they will be automatically allotted this room and emailed their allotment letter.`
+          `This will remove this student's application entirely so they can reapply — their ` +
+          `Applications row is deleted, not just marked Vacated. Their previous documents will ` +
+          `be archived, not deleted, and their Eligibility record is untouched, so they can still ` +
+          `log in and submit a fresh application. This cannot be undone. If a Verified student is ` +
+          `waitlisted for ${app.hostel} / ${app.roomType}, they will be automatically allotted this ` +
+          `room and emailed their allotment letter.`
         );
 
       if (!confirmed) {
@@ -2135,7 +2161,9 @@
           const promotedMessage =
             result.promoted
               ? ` ${result.promoted.name} (${result.promoted.enrolmentNo}) was automatically promoted from the waitlist into Room ${result.promoted.roomNo} and emailed their allotment letter.`
-              : ' No one was waitlisted in this hostel/room-type pool — the room is now open.';
+              : result.blockedByVerification
+                ? ` ${result.blockedByVerification.name} (${result.blockedByVerification.enrolmentNo}) is next on the waitlist but isn't Verified yet, so they weren't promoted — verify them first, then use Shift Room once a seat opens up.`
+                : ' No one was waitlisted in this hostel/room-type pool — the room is now open.';
 
           showAlert(
             alertRoot,
@@ -2206,16 +2234,20 @@
 
       shiftModalApplicationId = applicationId;
 
-      // Only rooms in the SAME hostel + room type as the student's current
-      // room, excluding that current room itself, and only ones with a
-      // free seat — the admin picks from what's actually available rather
-      // than typing a room number blind (and shiftStudent.js enforces this
-      // same restriction server-side regardless).
+      // Any room in the SAME hostel — room TYPE is no longer restricted
+      // here (loosened 2026-08-24: a same-hostel Triple-sharing<->4-sharing
+      // shift is now a legitimate admin override) — excluding the current
+      // room itself, and only ones with a free seat. Hostel stays the one
+      // hard restriction (gender segregation), matching what
+      // shiftStudent.js enforces server-side regardless of what this list
+      // shows. Since room type is now a real choice the admin is making
+      // (not just confirming they're staying in the same pool), each
+      // option spells its room type out explicitly rather than just the
+      // room number.
       const candidateRooms =
         rooms.filter(
           (r) =>
             r.hostel === app.hostel &&
-            r.roomType === app.roomType &&
             r.roomNo !== app.allottedRoomNo &&
             (r.capacity - r.occupied) > 0
         );
@@ -2228,7 +2260,7 @@
       if (candidateRooms.length === 0) {
 
         shiftRoomSelect.innerHTML =
-          '<option value="">No other rooms with space in this hostel/room-type pool</option>';
+          '<option value="">No other rooms with space in this hostel</option>';
 
         shiftRoomSelect.disabled = true;
         shiftModalConfirmBtn.disabled = true;
@@ -2242,7 +2274,7 @@
           candidateRooms
             .map(
               (r) =>
-                `<option value="${r.roomNo}">Room ${r.roomNo} — ${r.occupied}/${r.capacity} occupied (${r.capacity - r.occupied} free)</option>`
+                `<option value="${r.roomNo}">Room ${r.roomNo} — ${r.roomType} — ${r.occupied}/${r.capacity} occupied (${r.capacity - r.occupied} free)</option>`
             )
             .join('');
 
@@ -2282,6 +2314,11 @@
 
           closeShiftModal();
 
+          const roomTypeNote =
+            result.oldRoomType !== result.newRoomType
+              ? ` (${result.oldRoomType} → ${result.newRoomType})`
+              : '';
+
           const roommateNote =
             result.roommate && result.roommate.pairingBroken
               ? ` Roommate pairing with ${result.roommate.name} (${result.roommate.enrolmentNo}) was broken — the target room didn't have 2 free seats.`
@@ -2294,7 +2331,7 @@
             {
               title: 'Student shifted',
               message:
-                `${result.enrolmentNo} moved from Room ${result.oldRoomNo} to Room ${result.newRoomNo}.` +
+                `${result.enrolmentNo} moved from Room ${result.oldRoomNo} to Room ${result.newRoomNo}${roomTypeNote}.` +
                 roommateNote,
               tone: 'info'
             }

@@ -93,6 +93,43 @@ async function uploadFile({ folderId, fileName, mimeType, buffer }) {
   return { fileId: res.data.id, fileUrl: res.data.webViewLink };
 }
 
+/**
+ * Archives a student's Drive folder by renaming it from the plain
+ * `<EnrolmentNo>` to `<EnrolmentNo>-vacated-<YYYY-MM-DD>` — used when an
+ * admin vacates a student's room and their Applications row is deleted
+ * entirely (see api/admin/vacateRoom.js), so a later reapplication's first
+ * upload doesn't land in the old folder. Documents are NEVER deleted here,
+ * only renamed — getOrCreateStudentFolder()'s find-by-EXACT-name lookup
+ * simply won't match the renamed folder anymore, so the next upload
+ * correctly creates a brand-new, empty folder instead.
+ *
+ * Deliberately does NOT use findOrCreateFolder() — that would CREATE an
+ * empty folder for a student who never actually uploaded anything, just to
+ * immediately rename it, which is pointless and clutters Drive. A no-op
+ * (not an error) if the student has no folder to archive.
+ */
+async function archiveStudentFolder(enrolmentNo) {
+  const drive = getDriveClient();
+
+  const rootId = await findOrCreateFolder(DRIVE_ROOT_FOLDER_NAME, null);
+  const q = `name = '${enrolmentNo.replace(/'/g, "\\'")}' and mimeType = '${FOLDER_MIME_TYPE}' and trashed = false and '${rootId}' in parents`;
+
+  const listRes = await drive.files.list({
+    q,
+    fields: 'files(id, name)',
+    spaces: 'drive'
+  });
+
+  const folder = listRes.data.files && listRes.data.files[0];
+  if (!folder) return; // nothing uploaded yet — nothing to archive
+
+  const dateStamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  await drive.files.update({
+    fileId: folder.id,
+    resource: { name: `${enrolmentNo}-vacated-${dateStamp}` }
+  });
+}
+
 /** Resolves a Drive file's current display name from a webViewLink-style URL — null if the link doesn't parse or the file's gone (moved/deleted since upload), matching Code.gs's fallback-to-generic-label behavior. */
 async function getFileNameFromDriveLink(url) {
   const match = String(url).match(/\/d\/([^/]+)/);
@@ -110,6 +147,7 @@ async function getFileNameFromDriveLink(url) {
 module.exports = {
   getDriveClient,
   getOrCreateStudentFolder,
+  archiveStudentFolder,
   uploadFile,
   getFileNameFromDriveLink
 };
