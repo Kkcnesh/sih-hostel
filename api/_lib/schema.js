@@ -19,20 +19,16 @@ const SHEET_NAMES = {
 
 // CategoryReservation appended 2026-08-23 to lock reservation-category
 // against Eligibility instead of leaving it self-declared on the
-// application form (see deriveCategoryReservation() below) — appended at
-// the END, never inserted, for the same column-position-safety reason as
-// the APPLICATIONS_COLUMNS note further down. The live Eligibility sheet's
-// header row needs this same column appended — see SETUP.md.
+// application form (see deriveCategoryReservation() below). getSheetRows()
+// resolves columns by NAME against the live header now (see getHeaderMap()
+// in _lib/sheets.js), not by position — the live Eligibility sheet's header
+// row just needs this column present somewhere — see SETUP.md.
 const ELIGIBILITY_COLUMNS = ['EnrolmentNo', 'Name', 'DOB', 'Course', 'School', 'Gender', 'CategoryReservation'];
 
 const APPLICATIONS_COLUMNS = [
   'ApplicationID', 'EnrolmentNo', 'Name', 'Nationality', 'DOB', 'Course', 'School',
   'DateOfJoiningUniversity', 'CategoryResidence', 'CategoryReservation',
   'FatherName', 'MotherName',
-  'ParentOfficeAddress', 'ParentOfficeTel', 'ParentOfficeEmail',
-  'ParentResidenceAddress', 'ParentResidenceTel', 'ParentResidenceEmail',
-  'GuardianOfficeAddress', 'GuardianOfficeTel', 'GuardianOfficeEmail',
-  'GuardianResidenceAddress', 'GuardianResidenceTel', 'GuardianResidenceEmail',
   'EmergencyAddress', 'EmergencyTel',
   'StudentMobile', 'StudentEmail', 'ExtraCurricular',
   'HostelChoice', 'RoomTypePreference', 'RoommatePreferenceEnrolmentNo',
@@ -42,37 +38,53 @@ const APPLICATIONS_COLUMNS = [
   'AllottedRoomNo', 'AllottedRoommateEnrolmentNo', 'WaitlistPosition',
 
   // ---- Appended 2026-08-23 for the structured-address UI redesign ----
-  // MUST stay appended at the end, in this exact order, and never be
-  // reordered/renamed/removed above this line. getSheetRows()/writeRowAt()
-  // in _lib/sheets.js read and write purely by COLUMN POSITION (A2:<lastCol>),
-  // not by matching header text — so touching anything above this line
-  // would silently misalign every existing row in the live HostelDB sheet.
-  // The live sheet's header row (row 1) needs these same names appended
-  // in this same order as of this change — see SETUP.md.
+  // getSheetRows()/writeRowAt() in _lib/sheets.js now resolve every column
+  // by NAME against the live sheet's actual header row (see getHeaderMap()
+  // there, fixed 2026-08-24) — so, unlike when this block was first
+  // appended, column order here no longer has to match the live sheet's
+  // physical order, and removing a column is no longer position-unsafe.
   //
-  // The old ParentOfficeAddress/Tel/Email, GuardianOfficeAddress/Tel/Email
-  // and GuardianResidenceAddress/Tel/Email columns above are kept in place
-  // (never populated for new submissions, see buildApplicationRow()) rather
-  // than removed, for the same column-position-safety reason. ParentResidenceAddress
-  // is also no longer populated — the UI collects the parent's residence
-  // address as the 7 structured fields below instead of one free-text string.
-  'FatherPhone', 'MotherPhone',
+  // Cleanup (2026-08-24): the old single-field ParentOfficeAddress/Tel/
+  // Email, ParentResidenceAddress, GuardianOfficeAddress/Tel/Email, and
+  // GuardianResidenceAddress/Tel/Email columns — superseded by this block's
+  // structured fields below — have been REMOVED from this array entirely
+  // (they used to be "kept in place, never populated" purely because
+  // removing them was unsafe under the old position-based sheet access;
+  // that reason is gone now). ParentResidenceTel/ParentResidenceEmail are
+  // the two exceptions: they're KEPT below, still actively populated from
+  // the current form's residence-address Tel/Email fields — they were
+  // never replaced by anything, just joined by the 7 structured address
+  // fields alongside them.
+  //
+  // FLAGGED, not silently dropped: the old schema separately captured
+  // OFFICE and RESIDENCE contact details for both parent and guardian (6
+  // fields each: address/tel/email x2 locations). The current UI (per the
+  // 2026-08-23 redesign) collects only ONE address for the parent
+  // ("Present Address — Residence") and ONE address for the guardian, with
+  // no office/residence distinction for either, and no guardian email
+  // field at all (parent office contact info — all 3 fields — has no
+  // replacement; guardian email — both variants — has no replacement
+  // either). The guardian side did gain fields the original schema never
+  // had at all (GuardianName, GuardianRelationship, below) — so this was a
+  // net restructuring, not a pure loss, but the office/residence split and
+  // guardian email are genuinely gone with nothing capturing that
+  // information going forward.
+  'FatherPhone', 'MotherPhone', 'ParentResidenceTel', 'ParentResidenceEmail',
   'ParentResidenceHouseNo', 'ParentResidenceStreetArea', 'ParentResidenceCity',
   'ParentResidenceDistrict', 'ParentResidenceState', 'ParentResidencePincode',
   'ParentResidenceLandmark',
   // Local guardian: the UI redesign collapsed the old residence/office split
-  // into a single address (and dropped guardian email entirely) — see the
-  // note above priorityTier()-adjacent buildApplicationRow() below for why
-  // these are the only guardian columns populated going forward.
+  // into a single address and dropped guardian email entirely — see the
+  // FLAGGED note above and buildApplicationRow() below for what actually
+  // gets populated going forward.
   'GuardianName', 'GuardianRelationship', 'GuardianPhone',
   'GuardianHouseNo', 'GuardianStreetArea', 'GuardianCity',
   'GuardianDistrict', 'GuardianState', 'GuardianPincode', 'GuardianLandmark',
 
   // ---- Appended 2026-08-24 for distance-based allocation tiebreaking ----
-  // Same append-only, never-reorder rule as the 2026-08-23 block above —
-  // getSheetRows()/writeRowAt() read/write by column POSITION, not header
-  // name. The live sheet's header row needs these two appended in this
-  // same order — see SETUP.md.
+  // getSheetRows()/writeRowAt() resolve columns by NAME now (see the note
+  // on the 2026-08-23 block above) — the live sheet's header row just needs
+  // these two names present somewhere, order no longer matters. See SETUP.md.
   //
   // DistanceFromResidenceKm is self-declared by the student, same trust
   // model as CategoryResidence above (see buildApplicationRow() below) —
@@ -288,7 +300,7 @@ function deriveCategoryReservation(value) {
   return RESERVATION_CATEGORIES.includes(normalized) ? normalized : null;
 }
 
-/** Reads a dotted path ('localGuardian.office.tel') off a plain object; undefined if any segment is missing. */
+/** Reads a dotted path ('residenceAddress.tel') off a plain object; undefined if any segment is missing. */
 function getPath(obj, path) {
   return path.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
 }
@@ -413,27 +425,14 @@ function buildApplicationRow(formData, elig, applicationId) {
     CategoryReservation: deriveCategoryReservation(elig.CategoryReservation) || 'GEN',
     FatherName: formData.fatherName,
     MotherName: formData.motherName,
-    // Parent office address: the UI redesign dropped this section entirely
-    // (only "Present Address — Residence" remains) — always blank for new
-    // submissions. Column kept in place; see the APPLICATIONS_COLUMNS note.
-    ParentOfficeAddress: '',
-    ParentOfficeTel: '',
-    ParentOfficeEmail: '',
-    // No longer populated — the UI now collects the parent's residence
-    // address as 7 structured fields (below) instead of one free-text
-    // string. Column kept in place for existing historical rows.
-    ParentResidenceAddress: '',
+    // Parent OFFICE address/tel/email and the old single-field
+    // ParentResidenceAddress/GuardianOffice*/GuardianResidence* columns are
+    // gone (removed from APPLICATIONS_COLUMNS 2026-08-24 — see that array's
+    // comment for the full explanation and the FLAGGED information-loss
+    // note). ParentResidenceTel/Email are the two residence-contact fields
+    // that survive — still populated below, same as always.
     ParentResidenceTel: getPath(formData, 'residenceAddress.tel') || '',
     ParentResidenceEmail: getPath(formData, 'residenceAddress.email') || '',
-    // Local guardian office/residence split no longer exists in the UI —
-    // always blank for new submissions. Columns kept in place; see
-    // GuardianName etc. below for what actually gets written now.
-    GuardianOfficeAddress: '',
-    GuardianOfficeTel: '',
-    GuardianOfficeEmail: '',
-    GuardianResidenceAddress: '',
-    GuardianResidenceTel: '',
-    GuardianResidenceEmail: '',
     EmergencyAddress: formData.emergencyAddress,
     EmergencyTel: formData.emergencyTel,
     StudentMobile: formData.studentMobile,

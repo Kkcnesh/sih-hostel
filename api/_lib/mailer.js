@@ -20,13 +20,14 @@
  *
  * SINGLE-RECIPIENT RULE — enforced here, not just by caller discipline:
  * every send in this file goes to `applicationData.StudentEmail` and
- * nothing else. The Applications schema also has ParentResidenceEmail /
- * ParentOfficeEmail / GuardianResidenceEmail / GuardianOfficeEmail columns
- * (see _lib/schema.js APPLICATIONS_COLUMNS) — none of them are ever read in
+ * nothing else. The Applications schema also has a ParentResidenceEmail
+ * column (see _lib/schema.js APPLICATIONS_COLUMNS) — it's never read in
  * this file. Don't add a "cc the parents" convenience later without a
- * deliberate decision; it wasn't asked for and several of those columns
- * aren't even populated by the current UI (see schema.js's
- * buildApplicationRow() comments).
+ * deliberate decision; it wasn't asked for. (The old ParentOfficeEmail /
+ * GuardianResidenceEmail / GuardianOfficeEmail columns this comment used to
+ * also list were removed from the schema entirely 2026-08-24 — there's no
+ * guardian email column left in the schema at all, see APPLICATIONS_COLUMNS'
+ * comment.)
  *
  * FAILURE HANDLING: every exported send function catches its own errors,
  * logs them to the Logs sheet via logEvent() (same pattern as the rest of
