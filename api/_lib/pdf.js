@@ -182,8 +182,6 @@ function generateApplicationPDF(applicationData) {
     ]));
     if (applicationData.ParentResidenceTel) drawField(doc, 'Residence Telephone', applicationData.ParentResidenceTel);
     if (applicationData.ParentResidenceEmail) drawField(doc, 'Residence Email', applicationData.ParentResidenceEmail);
-    drawField(doc, 'Emergency Contact Address', applicationData.EmergencyAddress);
-    drawField(doc, 'Emergency Contact Telephone', applicationData.EmergencyTel);
 
     // Local guardian is an entirely optional section in the current UI
     // (see schema.js validateApplicationFields()) — only print it if the

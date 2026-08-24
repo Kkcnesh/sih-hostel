@@ -29,7 +29,21 @@ const APPLICATIONS_COLUMNS = [
   'ApplicationID', 'EnrolmentNo', 'Name', 'Nationality', 'DOB', 'Course', 'School',
   'DateOfJoiningUniversity', 'CategoryResidence', 'CategoryReservation',
   'FatherName', 'MotherName',
-  'EmergencyAddress', 'EmergencyTel',
+  // EmergencyAddress/EmergencyTel removed 2026-08-24 — the UI redesign that
+  // added the pincode-lookup + structured-address changes also dropped the
+  // Emergency Contact section from application.html without anyone
+  // deciding to (same accidental-drop shape as the ParentOffice*/
+  // GuardianOffice*/GuardianResidence* cleanup above, just a different
+  // pass). Rather than restore the UI a second time, the call this round
+  // was to remove the column instead — the live sheet's header row had
+  // these two cells manually removed to match; this array,
+  // validateApplicationFields(), buildApplicationRow(), and pdf.js's
+  // generateApplicationPDF() all need to stay in sync with that, or
+  // getHeaderMap()'s validation in _lib/sheets.js will throw on every read/
+  // write. If a real emergency-contact requirement comes back later, it
+  // needs the same treatment DistanceFromResidenceKm got: a fresh column
+  // appended to the live sheet's header (via POST /api/admin/syncHeaders,
+  // not by hand) and added back to APPLICATIONS_COLUMNS.
   'StudentMobile', 'StudentEmail', 'ExtraCurricular',
   'HostelChoice', 'RoomTypePreference', 'RoommatePreferenceEnrolmentNo',
   'PhotoDriveLink', 'AadharDriveLink', 'MarksheetsDriveLink',
@@ -370,8 +384,6 @@ function validateApplicationFields(formData) {
   optionalEmail('residenceAddress.email', 'Residence email');
   requireMobile('studentMobile', 'Mobile number');
   requireEmail('studentEmail', 'Student email');
-  requireText('emergencyAddress', 'Emergency contact address');
-  requireText('emergencyTel', 'Emergency contact telephone number');
   // Local guardian: the UI redesign made the entire section Optional (no
   // required fields at all) and collapsed the old residence/office split
   // into one address with no guardian email — see buildApplicationRow()
@@ -433,8 +445,6 @@ function buildApplicationRow(formData, elig, applicationId) {
     // that survive — still populated below, same as always.
     ParentResidenceTel: getPath(formData, 'residenceAddress.tel') || '',
     ParentResidenceEmail: getPath(formData, 'residenceAddress.email') || '',
-    EmergencyAddress: formData.emergencyAddress,
-    EmergencyTel: formData.emergencyTel,
     StudentMobile: formData.studentMobile,
     StudentEmail: formData.studentEmail,
     ExtraCurricular: formData.extraCurricular || '',

@@ -121,17 +121,6 @@
   margin-bottom: 10px;
 }
 
-/* Extra-Curricular */
-#field-extraCurricular {
-  margin-top: 8px;
-  margin-bottom: 0;
-}
-
-/* Textarea */
-#extraCurricular {
-  min-height: 90px;
-}
-
 /* Next button */
 #wizard-form .form-actions {
   margin-top: 18px;
@@ -355,10 +344,6 @@
                 <div></div>
               </div>
 
-              <div class="field">
-                <label class="field__label" for="extraCurricular">Extra-Curricular Activities <span class="field__tag field__tag--optional">Optional</span></label>
-                <textarea class="field__control" id="extraCurricular" rows="2" placeholder="Sports, societies, clubs, competitions…"></textarea>
-              </div>
             </div>
 
             <!-- ============ STEP: FAMILY & CONTACT DETAILS ============ -->
@@ -469,37 +454,9 @@
         <p class="field__error"></p>
       </div>
 
-      <div class="field" id="field-district">
-        <label class="field__label" for="district">
-          District <span class="field__required">*</span>
-        </label>
-        <input
-          class="field__control"
-          type="text"
-          id="district"
-          placeholder="District"
-        >
-        <p class="field__error"></p>
-      </div>
-
-    </div>
-
-
-    <div class="field-row">
-
-      <div class="field" id="field-state">
-        <label class="field__label" for="state">
-          State <span class="field__required">*</span>
-        </label>
-        <input
-          class="field__control"
-          type="text"
-          id="state"
-          placeholder="State"
-        >
-        <p class="field__error"></p>
-      </div>
-
+      <!-- PIN Code comes right after City, ahead of District/State — typing
+           it here drives the auto-lookup that fills District/State below
+           (see the pincode-lookup wiring near initWizard() further down). -->
       <div class="field" id="field-pincode">
         <label class="field__label" for="pincode">
           PIN Code <span class="field__required">*</span>
@@ -511,6 +468,37 @@
           inputmode="numeric"
           maxlength="6"
           placeholder="6-digit PIN code"
+        >
+        <p class="field__error"></p>
+      </div>
+
+    </div>
+
+
+    <div class="field-row">
+
+      <div class="field" id="field-district">
+        <label class="field__label" for="district">
+          District <span class="field__required">*</span>
+        </label>
+        <input
+          class="field__control"
+          type="text"
+          id="district"
+          placeholder="Auto-filled from PIN code — edit if needed"
+        >
+        <p class="field__error"></p>
+      </div>
+
+      <div class="field" id="field-state">
+        <label class="field__label" for="state">
+          State <span class="field__required">*</span>
+        </label>
+        <input
+          class="field__control"
+          type="text"
+          id="state"
+          placeholder="Auto-filled from PIN code — edit if needed"
         >
         <p class="field__error"></p>
       </div>
@@ -567,26 +555,6 @@
 
   </div>
 
-  <div class="field" id="field-emergencyAddress">
-    <label class="field__label" for="emergencyAddress">
-      Emergency Contact Address <span class="field__required">*</span>
-    </label>
-    <textarea class="field__control" id="emergencyAddress" rows="2"></textarea>
-    <p class="field__help">Who should the hostel reach first in an emergency, and where.</p>
-    <p class="field__error"></p>
-  </div>
-
-  <div class="field-row">
-    <div class="field" id="field-emergencyTel">
-      <label class="field__label" for="emergencyTel">
-        Emergency Contact Tel. No. <span class="field__required">*</span>
-      </label>
-      <input class="field__control" type="tel" id="emergencyTel">
-      <p class="field__error"></p>
-    </div>
-    <div></div>
-  </div>
-
 </div>
 
             <!-- ============ STEP: LOCAL GUARDIAN DETAILS ============ -->
@@ -634,6 +602,15 @@
           <option value="Grandmother">Grandmother</option>
           <option value="Other">Other</option>
         </select>
+
+        <!-- Shown only when "Other" is selected — see
+             updateGuardianRelationship() near initWizard() below. The typed
+             text here, not the literal word "Other", is what actually gets
+             sent as GuardianRelationship (see resolveGuardianRelationship()). -->
+        <div class="field" id="field-guardianRelationshipOther" style="display: none; margin-top: 8px;">
+          <input class="field__control" type="text" id="guardianRelationshipOther" placeholder="Please specify">
+          <p class="field__error"></p>
+        </div>
 
         <p class="field__error"></p>
       </div>
@@ -727,45 +704,8 @@
         </div>
 
 
-        <div class="field" id="field-guardianDistrict">
-          <label class="field__label" for="guardianDistrict">
-            District
-            <span class="field__tag field__tag--optional">Optional</span>
-          </label>
-
-          <input
-            class="field__control"
-            type="text"
-            id="guardianDistrict"
-            placeholder="District"
-          >
-
-          <p class="field__error"></p>
-        </div>
-
-      </div>
-
-
-      <!-- State + PIN -->
-      <div class="field-row">
-
-        <div class="field" id="field-guardianState">
-          <label class="field__label" for="guardianState">
-            State
-            <span class="field__tag field__tag--optional">Optional</span>
-          </label>
-
-          <input
-            class="field__control"
-            type="text"
-            id="guardianState"
-            placeholder="State"
-          >
-
-          <p class="field__error"></p>
-        </div>
-
-
+        <!-- PIN Code comes right after City, ahead of District/State — same
+             auto-lookup pattern as the residence address above. -->
         <div class="field" id="field-guardianPincode">
           <label class="field__label" for="guardianPincode">
             PIN Code
@@ -779,6 +719,44 @@
             inputmode="numeric"
             maxlength="6"
             placeholder="6-digit PIN code"
+          >
+
+          <p class="field__error"></p>
+        </div>
+
+      </div>
+
+
+      <!-- District + State -->
+      <div class="field-row">
+
+        <div class="field" id="field-guardianDistrict">
+          <label class="field__label" for="guardianDistrict">
+            District
+            <span class="field__tag field__tag--optional">Optional</span>
+          </label>
+
+          <input
+            class="field__control"
+            type="text"
+            id="guardianDistrict"
+            placeholder="Auto-filled from PIN code — edit if needed"
+          >
+
+          <p class="field__error"></p>
+        </div>
+
+        <div class="field" id="field-guardianState">
+          <label class="field__label" for="guardianState">
+            State
+            <span class="field__tag field__tag--optional">Optional</span>
+          </label>
+
+          <input
+            class="field__control"
+            type="text"
+            id="guardianState"
+            placeholder="Auto-filled from PIN code — edit if needed"
           >
 
           <p class="field__error"></p>
@@ -1004,6 +982,79 @@
       return null;
     }
 
+    /**
+     * "Other" is a placeholder selection, not a real relationship — this
+     * resolves what should actually be shown (Review step) and sent
+     * (submitApplicationNow()): the typed "please specify" text when one
+     * was given, otherwise whatever the select itself holds (every named
+     * option, or "Other" with nothing typed, as a safe fallback rather
+     * than silently sending blank). Kept as one shared function rather
+     * than duplicated inline at both call sites.
+     */
+    function resolveGuardianRelationship(localGuardian) {
+      const relationship = localGuardian?.relationship ?? '';
+      const other = String(localGuardian?.relationshipOther ?? '').trim();
+      return relationship === 'Other' && other ? other : relationship;
+    }
+
+    /**
+     * Wires a PIN Code input to auto-fill District/State from India Post's
+     * public pincode lookup API (https://api.postalpincode.in) — a
+     * deliberate, accepted exception to this project's otherwise all-
+     * Google-services architecture (see SETUP.md's "External dependencies"
+     * section). District/State are NEVER made readonly/disabled here —
+     * they're a convenience prefill on top of two fields the student can
+     * always edit directly, which is what makes "the API is down/slow/
+     * wrong" a non-issue: on any failure, or on an unrecognized PIN code,
+     * this just clears the "Fetching…" placeholder and leaves an inline
+     * hint on the PIN Code field itself, and the student types District/
+     * State by hand exactly as they could before this feature existed.
+     * One shared implementation (rather than one copy per address) since
+     * the residence and guardian address blocks need the exact same
+     * behavior, just against different input elements.
+     */
+    function wirePincodeLookup({ pincodeInput, districtInput, stateInput }) {
+      pincodeInput.addEventListener('input', async () => {
+        const pincode = pincodeInput.value.replace(/\D/g, '').slice(0, 6);
+        pincodeInput.value = pincode;
+
+        const pincodeField = pincodeInput.closest('.field');
+        setFieldError(pincodeField, '');
+
+        // Don't look up until a full 6-digit code is entered — also covers
+        // the student clearing/editing the field, which correctly clears
+        // whatever was auto-filled before rather than leaving it stale.
+        if (pincode.length !== 6) {
+          districtInput.value = '';
+          stateInput.value = '';
+          return;
+        }
+
+        districtInput.value = 'Fetching…';
+        stateInput.value = 'Fetching…';
+
+        try {
+          const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+          const data = await response.json();
+          const postOffice = data && data[0] && data[0].Status === 'Success' && data[0].PostOffice && data[0].PostOffice[0];
+
+          if (postOffice) {
+            districtInput.value = postOffice.District || '';
+            stateInput.value = postOffice.State || '';
+          } else {
+            districtInput.value = '';
+            stateInput.value = '';
+            setFieldError(pincodeField, "Couldn't find this PIN code — enter District/State below manually.");
+          }
+        } catch (error) {
+          console.error('PIN code lookup failed:', error);
+          districtInput.value = '';
+          stateInput.value = '';
+          setFieldError(pincodeField, 'Could not reach the PIN code lookup service — enter District/State below manually.');
+        }
+      });
+    }
+
     function initWizard() {
       draft = getDraft() || {};
       currentStepIndex = draft.currentStep ? STEP_ORDER.indexOf(draft.currentStep) : 0;
@@ -1013,6 +1064,33 @@
       prefillFamily();
       prefillGuardian();
       prefillHostel();
+
+      wirePincodeLookup({
+        pincodeInput: document.getElementById('pincode'),
+        districtInput: document.getElementById('district'),
+        stateInput: document.getElementById('state')
+      });
+      wirePincodeLookup({
+        pincodeInput: document.getElementById('guardianPincode'),
+        districtInput: document.getElementById('guardianDistrict'),
+        stateInput: document.getElementById('guardianState')
+      });
+
+      // Show/hide the "please specify" field based on the (possibly just-
+      // restored-from-draft, via prefillGuardian() above) relationship
+      // select — called once up front so resuming a draft where "Other"
+      // was already chosen shows the field immediately, not just after
+      // the student touches the dropdown again.
+      const guardianRelationshipSelect = document.getElementById('guardianRelationship');
+      const guardianRelationshipOtherField = document.getElementById('field-guardianRelationshipOther');
+      function updateGuardianRelationshipOtherVisibility() {
+        const isOther = guardianRelationshipSelect.value === 'Other';
+        guardianRelationshipOtherField.style.display = isOther ? 'block' : 'none';
+        if (!isOther) document.getElementById('guardianRelationshipOther').value = '';
+      }
+      guardianRelationshipSelect.addEventListener('change', updateGuardianRelationshipOtherVisibility);
+      updateGuardianRelationshipOtherVisibility();
+
       uploaders = renderUploaders(
         document.getElementById('documents-container'),
         updateDocumentsNextState,
@@ -1172,9 +1250,7 @@
     id: 'pincode',
     validator: (value) => /^\d{6}$/.test(value.trim()),
     invalidMsg: 'Enter a valid 6-digit PIN code.'
-  },
-  { id: 'emergencyAddress' },
-  { id: 'emergencyTel' }
+  }
 ];
     // Local guardian is fully Optional in the current design (name,
     // relationship, phone, and the single address block below) — nothing
@@ -1227,9 +1303,6 @@
 
   document.getElementById('dateOfJoining').value =
     draft.dateOfJoining ?? '';
-
-  document.getElementById('extraCurricular').value =
-    draft.extraCurricular ?? '';
 
   if (draft.category) {
     const el = document.querySelector(
@@ -1286,12 +1359,6 @@
 
   document.getElementById('resEmail').value =
     draft.residenceAddress?.email ?? '';
-
-  document.getElementById('emergencyAddress').value =
-    draft.emergencyAddress ?? '';
-
-  document.getElementById('emergencyTel').value =
-    draft.emergencyTel ?? '';
 }
 
     function prefillGuardian() {
@@ -1300,6 +1367,12 @@
 
   document.getElementById('guardianRelationship').value =
     draft.localGuardian?.relationship ?? '';
+
+  // Restores the typed "please specify" text if the draft has one — see
+  // updateGuardianRelationship() near initWizard() below, which is what
+  // actually shows/hides this field based on the restored select value.
+  document.getElementById('guardianRelationshipOther').value =
+    draft.localGuardian?.relationshipOther ?? '';
 
   document.getElementById('guardianPhone').value =
     draft.localGuardian?.phone ?? '';
@@ -1357,8 +1430,7 @@
     // #reservationCategory input — the server ignores whatever's sent here
     // anyway and re-derives it independently in /api/submitApplication, so
     // this only needs to be correct for the Review step's own display.
-    reservationCategory: student.CategoryReservation,
-    extraCurricular: document.getElementById('extraCurricular').value
+    reservationCategory: student.CategoryReservation
   };
 }
       if (key === 'family') {
@@ -1380,10 +1452,7 @@
 
       tel: document.getElementById('resTel').value,
       email: document.getElementById('resEmail').value
-    },
-
-    emergencyAddress: document.getElementById('emergencyAddress').value,
-    emergencyTel: document.getElementById('emergencyTel').value
+    }
   };
 }
       if (key === 'guardian') {
@@ -1391,6 +1460,13 @@
     localGuardian: {
       name: document.getElementById('guardianName').value,
       relationship: document.getElementById('guardianRelationship').value,
+      // Raw select value + raw typed text, kept separate here (not yet
+      // substituted) so a draft reload can correctly re-show "Other" as
+      // selected AND re-populate what was typed — see
+      // resolveGuardianRelationship() near initWizard() below for where
+      // these two actually get combined into the value that's shown on
+      // the Review step and sent to the server.
+      relationshipOther: document.getElementById('guardianRelationshipOther').value,
       phone: document.getElementById('guardianPhone').value,
 
       address: {
@@ -1460,8 +1536,7 @@
         field('Distance from Residence to Campus (km)', d.distanceFromResidenceKm),
         field('Reservation Category', d.reservationCategory),
         field('Your Mobile', d.studentMobile),
-        field('Your Email', d.studentEmail),
-        field('Extra-Curricular Activities', d.extraCurricular, true)
+        field('Your Email', d.studentEmail)
       ].join(''));
 
       const family = block('Family & Contact Details', 'family', [
@@ -1514,15 +1589,16 @@
   field(
     'Residence Email',
     d.residenceAddress?.email
-  ),
-
-  field('Emergency Contact Address', d.emergencyAddress),
-  field('Emergency Contact Tel.', d.emergencyTel)
+  )
 ].join(''));
 
       const guardian = block('Local Guardian Details', 'guardian', [
   field('Guardian Name', d.localGuardian?.name),
-  field('Relationship', d.localGuardian?.relationship),
+  // Shows what will ACTUALLY be sent (the typed specification when
+  // "Other" was picked), not the raw select value — a review screen that
+  // showed the literal word "Other" here would be reviewing something
+  // different from what submitApplicationNow() below actually sends.
+  field('Relationship', resolveGuardianRelationship(d.localGuardian)),
   field('Guardian Phone Number', d.localGuardian?.phone),
 
   field(
@@ -1591,6 +1667,18 @@
       submitBtn.textContent = 'Submitting…';
 
       const applicationData = { ...draft, enrolmentNo: student.EnrolmentNo };
+
+      // Resolve "Other" -> the typed specification right before it's sent —
+      // the draft itself keeps the raw select value + raw typed text (see
+      // collectStep('guardian') above) so step-navigation/reload keeps
+      // showing "Other" selected correctly; only the actual outgoing
+      // payload gets the substituted value.
+      if (applicationData.localGuardian) {
+        applicationData.localGuardian = {
+          ...applicationData.localGuardian,
+          relationship: resolveGuardianRelationship(applicationData.localGuardian)
+        };
+      }
 
       callApi('submitApplication', applicationData)
         .then((result) => {

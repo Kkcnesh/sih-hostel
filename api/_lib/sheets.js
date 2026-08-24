@@ -199,6 +199,41 @@ async function writeRowAt(sheetName, columns, rowNumber, rowObject) {
   });
 }
 
+/**
+ * Appends new header cells to `sheetName`'s row 1, starting right after the
+ * last currently-populated header cell — NEVER touches, reorders, or
+ * overwrites an existing header cell, only ever extends the row rightward.
+ * The only caller is POST /api/admin/syncHeaders (see api/admin/syncHeaders.js)
+ * — this is the permanent fix for a recurring problem: a column added to one
+ * of the `*_COLUMNS` arrays in _lib/schema.js needs a matching header cell
+ * on the LIVE sheet before assertColumnsExist() above will allow any read
+ * or write to that sheet to succeed, and that's been a manual, error-prone
+ * fire-drill every time (see schema.js's "Appended ..." comments) — this
+ * lets an admin fix it with one button instead of hand-editing the sheet.
+ *
+ * Invalidates this sheet's cached header map afterward, so the very next
+ * getSheetRows()/writeRowAt() call — even within the same warm serverless
+ * instance that just ran the sync — sees the new columns immediately
+ * instead of the stale pre-sync header.
+ */
+async function appendHeaderColumns(sheetName, newColumnNames) {
+  if (newColumnNames.length === 0) return;
+
+  const header = await getHeaderMap(sheetName);
+  const sheets = getSheetsClient();
+  const startCol = header.names.length; // first empty column, 0-indexed
+  const endCol = startCol + newColumnNames.length - 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: getSpreadsheetId(),
+    range: `${sheetName}!${columnLetter(startCol)}1:${columnLetter(endCol)}1`,
+    valueInputOption: 'RAW',
+    resource: { values: [newColumnNames] }
+  });
+
+  headerCache.delete(sheetName);
+}
+
 /** Appends one row to the end of a sheet — used for Logs, where row position/order doesn't matter. */
 async function appendRow(sheetName, rowValues) {
   const sheets = getSheetsClient();
@@ -224,6 +259,8 @@ module.exports = {
   getAuth,
   getSheetsClient,
   getSpreadsheetId,
+  getHeaderMap,
+  appendHeaderColumns,
   getSheetRows,
   writeRowAt,
   appendRow,

@@ -24,6 +24,18 @@
   <style>
 
     /* ==========================================================
+       BACKGROUND PHOTO — matches index.html's same treatment
+       ========================================================== */
+
+    body {
+      background-image: url("assets/usarbg.png");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+
+    /* ==========================================================
        ADMIN PAGE ONLY
        ========================================================== */
 
@@ -684,6 +696,59 @@
 
 
     /* ==========================================================
+       MAINTENANCE — deliberately unobtrusive, not styled like the
+       everyday actions above (Run Allocation, Vacate, Shift Room)
+       ========================================================== */
+
+    .admin-maintenance {
+      display: flex;
+
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+
+      margin-top: 8px;
+      padding: 14px 4px 0;
+
+      border-top: 1px dashed var(--border);
+    }
+
+    .admin-maintenance__btn {
+      appearance: none;
+
+      padding: 6px 12px;
+
+      border: 1px solid var(--border-strong);
+      border-radius: 3px;
+
+      background: transparent;
+      color: var(--text-muted);
+
+      font-size: 12px;
+      font-weight: 600;
+
+      cursor: pointer;
+
+      transition: background-color 120ms ease, color 120ms ease;
+    }
+
+    .admin-maintenance__btn:hover:not(:disabled) {
+      background: var(--surface-muted);
+      color: var(--text);
+    }
+
+    .admin-maintenance__btn:disabled {
+      cursor: wait;
+      opacity: 0.6;
+    }
+
+    .admin-maintenance__hint {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+
+    /* ==========================================================
        ALERT
        ========================================================== */
 
@@ -987,6 +1052,29 @@
               </table>
 
             </div>
+
+          </section>
+
+
+          <!-- ================================================
+               MAINTENANCE (tucked away — not an everyday action)
+               ================================================ -->
+
+          <section class="admin-maintenance">
+
+            <button
+              type="button"
+              id="sync-headers-btn"
+              class="admin-maintenance__btn"
+            >
+              Sync Sheet Headers
+            </button>
+
+            <p class="admin-maintenance__hint">
+              Adds any header cell a schema change expects but the live
+              sheet is missing. Safe to run any time — a no-op if nothing's
+              missing.
+            </p>
 
           </section>
 
@@ -2254,6 +2342,83 @@
         }
       }
     );
+
+
+    /* ==========================================================
+       SYNC SHEET HEADERS (maintenance)
+       ========================================================== */
+
+    document
+      .getElementById('sync-headers-btn')
+      .addEventListener('click', syncHeadersNow);
+
+    function syncHeadersNow() {
+
+      const btn =
+        document.getElementById('sync-headers-btn');
+
+      btn.disabled = true;
+      btn.textContent = 'Syncing…';
+
+      clearAlert(alertRoot);
+
+      adminFetch(
+        'admin/syncHeaders',
+        {}
+      )
+
+      .then(
+        (result) => {
+
+          const detail =
+            result.results
+              .map(
+                (r) =>
+                  `${r.sheet}: ${
+                    r.added.length
+                      ? r.added.join(', ')
+                      : 'nothing missing'
+                  }`
+              )
+              .join(' · ');
+
+          showAlert(
+            alertRoot,
+            {
+              title: 'Sheet headers synced',
+              message: `${result.message} (${detail})`,
+              tone: 'info'
+            }
+          );
+
+        }
+      )
+
+      .catch(
+        (err) => {
+
+          showAlert(
+            alertRoot,
+            {
+              title: 'Could not sync sheet headers',
+              message: err.message,
+              tone: 'danger'
+            }
+          );
+
+        }
+      )
+
+      .finally(
+        () => {
+
+          btn.disabled = false;
+          btn.textContent = 'Sync Sheet Headers';
+
+        }
+      );
+
+    }
 
   </script>
 

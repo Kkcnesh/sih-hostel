@@ -150,29 +150,20 @@
     NAVIGATION RULE at the top of this file. clearSession() runs in the
     click handler but never calls preventDefault(), so the browser still
     follows the link's own href immediately afterward.
+
+    LOGGED-IN NAV IS A CLICK/TAP TOGGLE, NOT HOVER-ONLY: Log Out/Apply for
+    Hostel/Track Status/Check Vacancy live in a collapsible
+    .site-header__nav-options panel next to the student's avatar, opened by
+    the .site-header__nav-toggle hamburger button. This used to be a pure
+    CSS :hover reveal — fine with a mouse, but on a touch device there is no
+    hover state, so a logged-in student had no way to reach ANY of those
+    four links at all. It's a real <button> (not a styled <div>) so it's
+    keyboard-reachable too, toggles aria-expanded, and closes on Escape or
+    an outside click — see the listeners below and the CSS's ".is-open"
+    class (js/script.js is the only place that class ever gets added).
     ========================================================================== */
   function renderSiteHeader(rootEl, { activeNav = null } = {}) {
   const student = getSession();
-
-  const utilityRight = student
-    ? `
-        <div class="site-header__student">
-          <div class="site-header__avatar">
-            ${String(student.Name || 'S').trim().charAt(0).toUpperCase()}
-          </div>
-
-          <div class="site-header__student-info">
-            <div class="site-header__student-name">${student.Name}</div>
-            <div class="site-header__student-id">Enrolment · ${student.EnrolmentNo}</div>
-          </div>
-        </div>
-
-        <a href="${pageUrl('login')}" data-role="logout">Log Out</a>
-      `
-        : `
-        <a href="${pageUrl('login')}">Home</a>
-        <a href="admin.html">Admin Login</a>
-      `;
 
   // Check Vacancy is public (no login) — see api/vacancy.js — so it's
   // shown in both nav variants below, logged in or not, not tucked behind
@@ -188,6 +179,45 @@
     : `
         <a href="${pageUrl('login')}" ${activeNav === 'login' ? 'aria-current="page"' : ''}>Student Login</a>
         ${vacancyLink}
+      `;
+
+  const utilityRight = student
+    ? `
+        <div class="site-header__student-nav">
+
+          <div class="site-header__student">
+            <div class="site-header__avatar">
+              ${String(student.Name || 'S').trim().charAt(0).toUpperCase()}
+            </div>
+
+            <div class="site-header__student-info">
+              <div class="site-header__student-name">${student.Name}</div>
+              <div class="site-header__student-id">Enrolment · ${student.EnrolmentNo}</div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="site-header__nav-toggle"
+            data-role="nav-toggle"
+            aria-label="Open navigation"
+            aria-expanded="false"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+
+          <div class="site-header__nav-options" data-role="nav-options">
+            <a href="${pageUrl('login')}" data-role="logout">Log Out</a>
+            ${navLinks}
+          </div>
+
+        </div>
+      `
+    : `
+        <a href="${pageUrl('login')}">Home</a>
+        <a href="admin.html">Admin Login</a>
       `;
 
   rootEl.innerHTML = `
@@ -209,7 +239,7 @@
 
       <nav class="site-nav">
         ${utilityRight}
-        ${navLinks}
+        ${student ? '' : navLinks}
       </nav>
     </div>
   `;
@@ -217,6 +247,25 @@
   rootEl.querySelector('[data-role="logout"]')?.addEventListener('click', () => {
     clearSession();
   });
+
+  const navToggle = rootEl.querySelector('[data-role="nav-toggle"]');
+  const navOptions = rootEl.querySelector('[data-role="nav-options"]');
+  if (navToggle && navOptions) {
+    const closeNav = () => {
+      navOptions.classList.remove('is-open');
+      navToggle.setAttribute('aria-expanded', 'false');
+    };
+    navToggle.addEventListener('click', () => {
+      const isOpen = navOptions.classList.toggle('is-open');
+      navToggle.setAttribute('aria-expanded', String(isOpen));
+    });
+    document.addEventListener('click', (event) => {
+      if (!rootEl.contains(event.target)) closeNav();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeNav();
+    });
+  }
 }
 
   function renderSiteFooter(rootEl) {
@@ -353,15 +402,15 @@
     { key: 'aadhar', serverDocType: 'Aadhar', label: 'Aadhaar card copy', required: true, accept: 'image/*,application/pdf', multiple: false,
       help: 'Both sides — JPG, PNG or PDF, under 5 MB' },
     { key: 'marksheets', serverDocType: 'Marksheets', label: 'Marksheets (12th & preceding semester)', required: true, accept: 'image/*,application/pdf', multiple: false,
-      help: 'You can select more than one file at once' },
-    { key: 'medical', serverDocType: 'MedicalCert', label: 'Medical certificate (PDF)', required: true, accept: 'image/*,application/pdf', multiple: false,
-      help: 'Issued by a registered medical practitioner' },
-    { key: 'guardianConsent', serverDocType: 'GuardianConsent', label: 'Parent consent form (PDF)', required: true, accept: 'image/*,application/pdf', multiple: false,
-      help: 'Signed by your local guardian' },
-    { key: 'antiRagging', serverDocType: 'AntiRagging', label: 'Anti-Ragging affidavit (PDF)', required: true, accept: 'image/*,application/pdf', multiple: false,
-      help: 'Downloadable from the UGC Anti-Ragging portal' },
-    { key: 'addressProof', serverDocType: 'AddressProof', label: 'Address proof (PDF)', required: true, accept: 'image/*,application/pdf', multiple: false,
-      help: 'Electricity, water, telephone or piped-gas bill — not older than 3 months' }
+      help: 'You can select more than one file at once - (PDF)' },
+    { key: 'medical', serverDocType: 'MedicalCert', label: 'Medical certificate', required: true, accept: 'image/*,application/pdf', multiple: false,
+      help: 'Issued by a registered medical practitioner - (PDF)' },
+    { key: 'guardianConsent', serverDocType: 'GuardianConsent', label: 'Parent consent form', required: true, accept: 'image/*,application/pdf', multiple: false,
+      help: 'Signed by your parent - (PDF)' },
+    { key: 'antiRagging', serverDocType: 'AntiRagging', label: 'Anti-Ragging affidavit', required: true, accept: 'image/*,application/pdf', multiple: false,
+      help: 'Downloadable from the UGC Anti-Ragging portal - (PDF)' },
+    { key: 'addressProof', serverDocType: 'AddressProof', label: 'Address proof', required: true, accept: 'image/*,application/pdf', multiple: false,
+      help: 'Electricity, water, telephone or piped-gas bill — not older than 3 months - (PDF)' }
   ];
 
   const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB — Code.gs enforces this again server-side, don't only trust this check

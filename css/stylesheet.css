@@ -1299,19 +1299,24 @@ button:focus-visible,
   align-items: center;
   gap: 10px;
 
-  padding: 5px 12px 5px 6px;
+  padding: 4px 9px 4px 5px;
 
   border-radius: 7px;
 
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
+
+  flex-shrink: 0;
+  transition:
+    transform 350ms ease,
+    margin-right 350ms ease;
 }
 
 .site-header__avatar {
-  width: 31px;
-  height: 31px;
+  width: 28px;
+  height: 28px;
 
-  flex: 0 0 31px;
+  flex: 0 0 28px;
 
   display: flex;
   align-items: center;
@@ -1329,22 +1334,101 @@ button:focus-visible,
 .site-header__student-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
   line-height: 1.1;
 }
 
 .site-header__student-name {
   color: #fff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .site-header__student-id {
   color: rgba(255, 255, 255, 0.55);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 500;
   white-space: nowrap;
+}
+
+
+/* --------------------------------------------------------------------------
+   COLLAPSIBLE STUDENT NAV — click/tap toggle, not hover-only (fixed
+   2026-08-24; see js/script.js's renderSiteHeader() for why: a hover-only
+   reveal left every link in here — Log Out, Apply for Hostel, Track
+   Status, Check Vacancy — completely unreachable on a touch device, since
+   touch has no hover state. The .is-open class is added/removed only by
+   JS, on a real click/tap on .site-header__nav-toggle (a <button>, so it's
+   keyboard-reachable too).
+   -------------------------------------------------------------------------- */
+
+.site-header__student-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  position: relative;
+}
+
+.site-header__nav-toggle {
+  flex-shrink: 0;
+  width: 24px;
+  height: 20px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 2px 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+
+  transition: transform 350ms ease;
+}
+
+.site-header__nav-toggle span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+
+  transition: all 250ms ease;
+}
+
+.site-header__nav-options {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+
+  transform: translateX(-12px);
+
+  transition:
+    max-width 400ms ease,
+    opacity 220ms ease,
+    transform 400ms ease;
+}
+
+.site-header__nav-options a {
+  flex-shrink: 0;
+}
+
+.site-header__nav-options.is-open {
+  max-width: 700px;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.site-header__nav-toggle[aria-expanded="true"] {
+  transform: translateX(2px);
 }
 
 
